@@ -209,12 +209,80 @@ elif rol == "G3 - Operaciones":
 
 # ----------------- PANEL G4 -----------------
 elif rol == "G4 - Materiales":
-    st.header("G4: Sostenimiento y Restricciones Logísticas")
-    st.session_state.g4['clase_i'] = st.slider("Clase I (Racionamiento) %", 0, 100, st.session_state.g4.get('clase_i', 100))
-    st.session_state.g4['clase_iii'] = st.slider("Clase III (Combustibles y Lubricantes) %", 0, 100, st.session_state.g4.get('clase_iii', 100))
-    st.session_state.g4['clase_v'] = st.slider("Clase V (Munición) %", 0, 100, st.session_state.g4.get('clase_v', 100))
-    st.session_state.g4['vehiculos_servicio'] = st.slider("Vehículos en Servicio %", 0, 100, st.session_state.g4.get('vehiculos_servicio', 100))
-
+    st.header("G4: Sostenimiento, Munición y Restricciones Logísticas")
+    
+    # Inicializar bases de datos logísticas
+    if 'vehiculos' not in st.session_state.g4:
+        st.session_state.g4['vehiculos'] = []
+    if 'municion' not in st.session_state.g4:
+        st.session_state.g4['municion'] = []
+        
+    st.subheader("1. Vehículos de Dotación")
+    with st.form("form_veh"):
+        v_nombre = st.text_input("Modelo de Vehículo (Ej: MB 230G, VCTP)")
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            v_cant = st.number_input("Cantidad", min_value=1, value=5)
+            v_auto = st.number_input("Autonomía (Km)", min_value=1.0, value=400.0)
+        with c2:
+            v_comb = st.selectbox("Combustible", ["Gasoil", "Nafta", "JP-8"])
+            v_cons = st.number_input("Consumo c/ 100km (Lts)", min_value=1.0, value=20.0)
+        with c3:
+            v_lub = st.selectbox("Lubricante principal", ["15W40", "Grasa de Litio", "Transmisión"])
+            
+        if st.form_submit_button("Cargar Lote de Vehículos") and v_nombre:
+            st.session_state.g4['vehiculos'].append({
+                "Modelo": v_nombre, "Cant": v_cant, "Autonomía": v_auto,
+                "Combustible": v_comb, "Lts/100km": v_cons, "Lubricante": v_lub
+            })
+            
+    if st.session_state.g4['vehiculos']:
+        st.dataframe(pd.DataFrame(st.session_state.g4['vehiculos']), use_container_width=True)
+        
+    st.divider()
+    st.subheader("2. Stock General y Munición")
+    c_st1, c_st2 = st.columns(2)
+    with c_st1:
+        st.session_state.g4['stock_combustible'] = st.number_input("Stock Total Combustible (Lts)", min_value=0, value=10000)
+    with c_st2:
+        st.session_state.g4['stock_lubricante'] = st.number_input("Stock Total Lubricantes (Lts/Kg)", min_value=0, value=500)
+        
+    with st.form("form_mun"):
+        m_tipo = st.text_input("Calibre / Tipo de Munición (Ej: 7.62x51mm, 105mm)")
+        c_m1, c_m2 = st.columns(2)
+        with c_m1:
+            m_rep = st.number_input("Cantidad Repartida (En tropas)", min_value=0, value=2000)
+        with c_m2:
+            m_stock = st.number_input("Cantidad en Stock (Polvorín)", min_value=0, value=8000)
+            
+        if st.form_submit_button("Cargar Munición") and m_tipo:
+            st.session_state.g4['municion'].append({
+                "Tipo/Calibre": m_tipo, "Repartida": m_rep, "En Stock": m_stock, "Total General": m_rep + m_stock
+            })
+            
+    if st.session_state.g4['municion']:
+        st.dataframe(pd.DataFrame(st.session_state.g4['municion']), use_container_width=True)
+        
+    st.divider()
+    st.subheader("3. Proyección Logística de la Operación")
+    distancia_op = st.number_input("Distancia de la Operación planteada por G3 (Km)", min_value=1.0, value=100.0)
+    
+    if st.session_state.g4['vehiculos']:
+        consumo_total = 0
+        for v in st.session_state.g4['vehiculos']:
+            consumo_lote = (distancia_op / 100) * v['Lts/100km'] * v['Cant']
+            consumo_total += consumo_lote
+            st.write(f"- **{v['Cant']}x {v['Modelo']}** consumirán **{consumo_lote:.1f} Lts** de {v['Combustible']} en {distancia_op} Km.")
+        
+        st.metric("Consumo Total Estimado de Combustible", f"{consumo_total:.1f} Lts")
+        if consumo_total > st.session_state.g4['stock_combustible']:
+            st.error("⚠️ El consumo proyectado supera el stock de combustible disponible. Riesgo de culminación logística.")
+            
+    st.divider()
+    st.subheader("4. Disponibilidad y Aporte al PCR")
+    st.session_state.g4['vehiculos_servicio'] = st.slider("Porcentaje de Vehículos en Servicio", 0, 100, 100)
+    mod_g4 = st.session_state.g4['vehiculos_servicio'] / 100.0
+    st.info(f"Multiplicador Logístico: x{mod_g4:.2f} (Impactará directamente en la capacidad de combate del Comandante).")
 # ----------------- PANEL JEFE PLANA MAYOR -----------------
 elif rol == "Jefe de la Plana Mayor":
     st.header("Jefe de la Plana Mayor: Sincronización y Control")
@@ -276,25 +344,31 @@ elif rol == "Comandante":
     vrc_base_propio = sum(item['VRC'] for item in st.session_state.get('g3', {}).get('fuerzas_propias', []))
     vrc_base_eno = sum(item['VRC'] for item in st.session_state.get('g2', {}).get('fuerzas_eno', []))
     
-    poder_propio = vrc_base_propio * st.session_state.g1.get('moral', 1.0) * st.session_state.g2.get('terreno', 1.0)
-    poder_eno = vrc_base_eno * st.session_state.g2.get('terreno', 1.0)
+    # Factores multiplicadores consolidados de la Plana Mayor
+    mod_g1_moral = st.session_state.g1.get('moral', 1.0)
+    mod_g2_terreno = st.session_state.g2.get('terreno', 1.0)
+    mod_g4_logistico = st.session_state.g4.get('vehiculos_servicio', 100) / 100.0
+    
+    # Cálculo Integrado del Poder de Combate Relativo (PCR)
+    poder_propio = vrc_base_propio * mod_g1_moral * mod_g2_terreno * mod_g4_logistico
+    poder_eno = vrc_base_eno * mod_g2_terreno
     
     pcr_real = poder_propio / poder_eno if poder_eno > 0 else 0
     
     col1, col2, col3 = st.columns(3)
-    col1.metric("Poder de Combate Propio", f"{poder_propio:.2f}")
-    col2.metric("Poder de Combate Eno", f"{poder_eno:.2f}")
+    col1.metric("Poder de Combate Propio (Ajustado)", f"{poder_propio:.2f}")
+    col2.metric("Poder de Combate Eno (Ajustado)", f"{poder_eno:.2f}")
     col3.metric("PCR RESULTANTE", f"{pcr_real:.2f} : 1")
     
     exigencia_pcr = st.session_state.g3.get('pcr_requerido', 1.0)
-    alerta_logistica = any(val < 50 for val in st.session_state.get('g4', {'a':100}).values())
     
-    if pcr_real >= exigencia_pcr and not alerta_logistica:
-        st.success(f"✅ FACTIBLE: El PCR actual ({pcr_real:.2f}) es suficiente para la operación (Requiere {exigencia_pcr}).")
+    if pcr_real >= exigencia_pcr:
+        st.success(f"✅ FACTIBLE: El PCR actual ({pcr_real:.2f}) supera la exigencia doctrinaria para la operación (Requiere {exigencia_pcr}).")
     else:
-        st.error(f"⚠️ RIESGO MATEMÁTICO: El PCR de {pcr_real:.2f} es inferior al umbral doctrinario de {exigencia_pcr}.")
-    if alerta_logistica:
-        st.warning("⚠️ ALERTA LOGÍSTICA: Parámetros de G4 críticos.")
+        st.error(f"⚠️ RIESGO TÁCTICO INACEPTABLE: El PCR de {pcr_real:.2f} es inferior al umbral doctrinario de {exigencia_pcr}.")
+        
+    if st.session_state.g4.get('vehiculos_servicio', 100) < 60:
+        st.warning("⚠️ ALERTA LOGÍSTICA (G4): La tasa de vehículos en servicio es crítica, amenazando la movilidad de la operación.")
 
 # ----------------- PANEL GESTIÓN DE DATOS -----------------
 elif rol == "Gestión de Datos":
