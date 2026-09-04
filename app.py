@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+from fpdf import FPDF
 
 st.set_page_config(page_title="Monitor C2 - Estado Mayor", layout="wide")
 
@@ -16,6 +17,7 @@ if 'g4' not in st.session_state:
 # Menú lateral
 st.sidebar.title("Áreas de Conducción")
 rol = st.sidebar.radio("Seleccione Panel:", ["G1 - Personal", "G2 - Inteligencia", "G3 - Operaciones", "G4 - Materiales", "Comandante"])
+rol = st.sidebar.radio("Seleccione Panel:", ["G1 - Personal", "G2 - Inteligencia", "G3 - Operaciones", "G4 - Materiales", "Comandante", "Gestión de Datos"])
 
 # ----------------- PANEL G1 -----------------
 if rol == "G1 - Personal":
@@ -178,7 +180,6 @@ elif rol == "G2 - Inteligencia":
         c_res2.metric("VRC Enemigo Proyectado (Con Terreno)", f"{(vrc_bruto_eno * st.session_state.g2['terreno']):.2f}")
 
 # ----------------- PANEL G3 -----------------
-# ----------------- PANEL G3 -----------------
 elif rol == "G3 - Operaciones":
     st.header("G3: Maniobra, Exploración y Poder de Combate Propio")
     st.markdown("Diseño de la operación y cálculo de PCR integrando multiplicadores de G1[cite: 1]")
@@ -319,3 +320,57 @@ elif rol == "Comandante":
     
     if alerta_logistica:
         st.warning("⚠️ ALERTA LOGÍSTICA (G4): Al menos una clase de abastecimiento o la tasa de mantenimiento se encuentra por debajo del 50%, amenazando la continuidad operacional.")
+        # ----------------- PANEL GESTIÓN DE DATOS -----------------
+elif rol == "Gestión de Datos":
+    st.header("Gestión del Monitor y Exportación")
+    st.markdown("Generación de Anexos y limpieza de la matriz de estado.")
+    
+    st.markdown("**Exportar Apreciación de Situación (PDF)**")
+    if st.button("Generar Reporte PDF"):
+        pdf = FPDF()
+        pdf.add_page()
+        pdf.set_font("Arial", 'B', 16)
+        pdf.cell(200, 10, txt="Monitor de Comando y Control - Resumen", ln=True, align='C')
+        pdf.ln(5)
+        
+        # Extraer datos de memoria
+        g1 = st.session_state.get('g1', {})
+        g2 = st.session_state.get('g2', {})
+        g3 = st.session_state.get('g3', {})
+        g4 = st.session_state.get('g4', {})
+        
+        pdf.set_font("Arial", 'B', 12)
+        pdf.cell(200, 10, txt="G1 - Personal", ln=True)
+        pdf.set_font("Arial", size=10)
+        pdf.cell(200, 10, txt=f"Moral (Calculada): {g1.get('moral', 'N/A')} | Exp: {g1.get('experiencia', 'N/A')}", ln=True)
+        
+        pdf.set_font("Arial", 'B', 12)
+        pdf.cell(200, 10, txt="G2 - Inteligencia", ln=True)
+        pdf.set_font("Arial", size=10)
+        pdf.cell(200, 10, txt=f"Ambiente: {g2.get('ambiente', 'N/A')} | Terreno: {g2.get('terreno', 'N/A')}", ln=True)
+        for eno in g2.get('fuerzas_eno', []):
+            pdf.cell(200, 10, txt=f"- {eno['Elemento']} (VRC: {eno['VRC']})", ln=True)
+            
+        pdf.set_font("Arial", 'B', 12)
+        pdf.cell(200, 10, txt="G3 - Operaciones", ln=True)
+        pdf.set_font("Arial", size=10)
+        pdf.cell(200, 10, txt=f"Operación: {g3.get('tipo_operacion', 'N/A')} | PCR Requerido: {g3.get('pcr_requerido', 'N/A')}", ln=True)
+        for prop in g3.get('fuerzas_propias', []):
+            pdf.cell(200, 10, txt=f"- {prop['Elemento']} (VRC: {prop['VRC']})", ln=True)
+            
+        pdf.set_font("Arial", 'B', 12)
+        pdf.cell(200, 10, txt="G4 - Materiales", ln=True)
+        pdf.set_font("Arial", size=10)
+        pdf.cell(200, 10, txt=f"Mun (Cl V): {g4.get('clase_v', 'N/A')}% | Comb (Cl III): {g4.get('clase_iii', 'N/A')}%", ln=True)
+        
+        # Procesar y descargar
+        pdf_bytes = pdf.output(dest='S').encode('latin-1')
+        st.download_button(label="📥 Descargar Apreciación en PDF", data=pdf_bytes, file_name="apreciacion_situacion.pdf", mime="application/pdf")
+        
+    st.divider()
+    st.markdown("**Reinicio del Sistema**")
+    st.markdown("Elimina todas las unidades cargadas y restablece los parámetros a sus valores nominales.")
+    if st.button("⚠️ Limpiar Tablero de Comando", type="primary"):
+        for key in st.session_state.keys():
+            del st.session_state[key]
+        st.rerun()
