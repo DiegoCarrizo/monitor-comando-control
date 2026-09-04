@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import datetime
-import plotly.express as px
+#import plotly.express as px
 
 st.set_page_config(page_title="Monitor C2 - Riesgo Cuantitativo", layout="wide")
 
@@ -243,14 +243,10 @@ elif rol == "Jefe de la Plana Mayor":
     
     df_valido = df_actualizado[(df_actualizado["Actividad"].str.strip() != "") & (df_actualizado["Inicio"].str.strip() != "") & (df_actualizado["Fin"].str.strip() != "")]
     if not df_valido.empty:
-        try:
-            df_valido['Inicio'] = pd.to_datetime(df_valido['Inicio'])
-            df_valido['Fin'] = pd.to_datetime(df_valido['Fin'])
-            fig = px.timeline(df_valido, x_start="Inicio", x_end="Fin", y="Actividad", color="Responsable", title="Línea de Tiempo del Planeamiento")
-            fig.update_yaxes(autorange="reversed")
-            st.plotly_chart(fig, use_container_width=True)
-        except Exception as e:
-            st.warning("Formato de fecha inválido. Utilice 'YYYY-MM-DD HH:MM'.")
+        st.success("Actividades validadas en el cronograma.")
+        st.dataframe(df_valido, use_container_width=True)
+    else:
+        st.warning("Cargue fechas válidas para visualizar la sincronización.")
 
 # ----------------- PANEL COMANDANTE -----------------
 elif rol == "Comandante":
