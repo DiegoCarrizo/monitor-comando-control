@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
-import datetime
 import numpy as np
+import datetime
 
 st.set_page_config(page_title="Monitor C2 - Estado Mayor", layout="wide")
 
@@ -13,11 +13,20 @@ if 'g2' not in st.session_state:
 if 'g3' not in st.session_state:
     st.session_state.g3 = {'fuerzas_propias': [], 'tipo_operacion': 'Ataque Frontal', 'pcr_requerido': 3.0}
 if 'g4' not in st.session_state:
-    st.session_state.g4 = {'clase_i': 100, 'clase_iii': 100, 'clase_v': 100, 'vehiculos_servicio': 100}
+    st.session_state.g4 = {'clase_i': 100, 'clase_iii': 100, 'clase_v': 100, 'vehiculos_servicio': 100, 'vehiculos': [], 'municion': [], 'stock_combustible': 10000}
 
-# Menú lateral
+# Menú lateral actualizado
 st.sidebar.title("Áreas de Conducción")
-rol = st.sidebar.radio("Seleccione Panel:", ["G1 - Personal", "G2 - Inteligencia", "G3 - Operaciones", "G4 - Materiales", "Jefe de la Plana Mayor", "Comandante", "Gestión de Datos"])
+rol = st.sidebar.radio("Seleccione Panel:", [
+    "G1 - Personal", 
+    "G2 - Inteligencia", 
+    "G3 - Operaciones", 
+    "G4 - Materiales", 
+    "Confrontación (Juego de Guerra)",
+    "Jefe de la Plana Mayor", 
+    "Comandante", 
+    "Gestión de Datos"
+])
 
 # ----------------- PANEL G1 -----------------
 if rol == "G1 - Personal":
@@ -87,7 +96,7 @@ if rol == "G1 - Personal":
     rc2.metric("Estado Moral Calculado", moral_text, f"Multiplicador: {moral_calc}")
     capacidad_personal = factor_exp * factor_instruccion * moral_calc
     rc3.metric("Capacidad de Combate", f"{capacidad_personal:.2f}")
-   
+
     st.divider()
     st.subheader("4. Proyección Predictiva de Desgaste")
     st.markdown("Cálculo estadístico de bajas según tipo de operación (ROD-71-01-II, Tabla VIII)[cite: 1]")
@@ -154,6 +163,11 @@ elif rol == "G2 - Inteligencia":
             
     if st.session_state.g2['fuerzas_eno']:
         st.dataframe(pd.DataFrame(st.session_state.g2['fuerzas_eno']), use_container_width=True)
+        vrc_bruto_eno = sum(item['VRC'] for item in st.session_state.g2['fuerzas_eno'])
+        
+        c_res1, c_res2 = st.columns(2)
+        c_res1.metric("VRC Bruto Enemigo (Sin Terreno)", f"{vrc_bruto_eno:.2f}")
+        c_res2.metric("VRC Enemigo Proyectado (Con Terreno)", f"{(vrc_bruto_eno * st.session_state.g2['terreno']):.2f}")
 
 # ----------------- PANEL G3 -----------------
 elif rol == "G3 - Operaciones":
@@ -226,20 +240,19 @@ elif rol == "G3 - Operaciones":
             
     if st.session_state.g3['fuerzas_propias']:
         st.dataframe(pd.DataFrame(st.session_state.g3['fuerzas_propias']), use_container_width=True)
+        vrc_bruto_propio = sum(item['VRC'] for item in st.session_state.g3['fuerzas_propias'])
+        
+        c_r1, c_r2 = st.columns(2)
+        c_r1.metric("VRC Total Propio (Integrado con Moral y Óptica)", f"{vrc_bruto_propio:.2f}")
+        c_r2.metric("PCR Doctrinario Requerido", f"{st.session_state.g3['pcr_requerido']}:1")
 
 # ----------------- PANEL G4 -----------------
 elif rol == "G4 - Materiales":
     st.header("G4: Sostenimiento, Munición y Restricciones Logísticas")
     
-    # Inicializar bases de datos logísticas
-    if 'vehiculos' not in st.session_state.g4:
-        st.session_state.g4['vehiculos'] = []
-    if 'municion' not in st.session_state.g4:
-        st.session_state.g4['municion'] = []
-        
     st.subheader("1. Vehículos de Dotación")
     with st.form("form_veh"):
-        v_nombre = st.text_input("Modelo de Vehículo (Ej: MB 230G, VCTP)")
+        v_nombre = st.text_input("Modelo de Vehículo")
         c1, c2, c3 = st.columns(3)
         with c1:
             v_cant = st.number_input("Cantidad", min_value=1, value=5)
@@ -268,12 +281,12 @@ elif rol == "G4 - Materiales":
         st.session_state.g4['stock_lubricante'] = st.number_input("Stock Total Lubricantes (Lts/Kg)", min_value=0, value=500)
         
     with st.form("form_mun"):
-        m_tipo = st.text_input("Calibre / Tipo de Munición (Ej: 7.62x51mm, 105mm)")
+        m_tipo = st.text_input("Calibre / Tipo de Munición")
         c_m1, c_m2 = st.columns(2)
         with c_m1:
-            m_rep = st.number_input("Cantidad Repartida (En tropas)", min_value=0, value=2000)
+            m_rep = st.number_input("Cantidad Repartida", min_value=0, value=2000)
         with c_m2:
-            m_stock = st.number_input("Cantidad en Stock (Polvorín)", min_value=0, value=8000)
+            m_stock = st.number_input("Cantidad en Stock", min_value=0, value=8000)
             
         if st.form_submit_button("Cargar Munición") and m_tipo:
             st.session_state.g4['municion'].append({
@@ -291,153 +304,35 @@ elif rol == "G4 - Materiales":
         consumo_km = sum((v['Lts/100km'] / 100) * v['Cant'] for v in st.session_state.g4['vehiculos'])
         stock_actual = st.session_state.g4['stock_combustible']
         
-        # Calcular en qué kilómetro exacto se agota el combustible
         km_culminacion = stock_actual / consumo_km if consumo_km > 0 else 0
         
         c_cul1, c_cul2 = st.columns(2)
-        c_cul1.metric("Consumo Promedio de la Columna", f"{consumo_km:.2f} Lts/Km")
+        c_cul1.metric("Consumo Promedio", f"{consumo_km:.2f} Lts/Km")
         
         if km_culminacion < distancia_op:
-            c_cul2.metric("Punto de Culminación Logística", f"Km {km_culminacion:.1f}", "¡Impulso perdido antes del objetivo!", delta_color="inverse")
+            c_cul2.metric("Punto Culminación", f"Km {km_culminacion:.1f}", "Impulso perdido", delta_color="inverse")
             st.error(f"⚠️ La fuerza se detendrá a los {km_culminacion:.1f} Km por falta de combustible.")
         else:
-            c_cul2.metric("Punto de Culminación Logística", f"Km {km_culminacion:.1f}", "Stock suficiente para el objetivo")
-            st.success("✅ Autonomía logística garantizada para la distancia de la operación.")
+            c_cul2.metric("Punto Culminación", f"Km {km_culminacion:.1f}", "Suficiente")
+            st.success("✅ Autonomía garantizada.")
             
     st.divider()
     st.subheader("4. Disponibilidad y Aporte al PCR")
     st.session_state.g4['vehiculos_servicio'] = st.slider("Porcentaje de Vehículos en Servicio", 0, 100, 100)
     mod_g4 = st.session_state.g4['vehiculos_servicio'] / 100.0
-    st.info(f"Multiplicador Logístico: x{mod_g4:.2f} (Impactará directamente en la capacidad de combate del Comandante).")
-# ----------------- PANEL JEFE PLANA MAYOR -----------------
-elif rol == "Jefe de la Plana Mayor":
-    st.header("Jefe de la Plana Mayor: Sincronización y Control")
-    
-    st.subheader("1. Estado Actual de la Plana Mayor")
-    col_s1, col_s2, col_s3, col_s4 = st.columns(4)
-    col_s1.metric("Moral (G1)", st.session_state.get('g1', {}).get('moral', 'S/D'))
-    col_s2.metric("VRC Enemigo (G2)", sum(item['VRC'] for item in st.session_state.get('g2', {}).get('fuerzas_eno', [])))
-    col_s3.metric("VRC Propio (G3)", sum(item['VRC'] for item in st.session_state.get('g3', {}).get('fuerzas_propias', [])))
-    col_s4.metric("Munición (G4)", f"{st.session_state.get('g4', {}).get('clase_v', 0)}%")
-    
-    st.divider()
-    st.subheader("2. Guía del Proceso de Planificación de Comando (PPC)")
-    st.info("""
-    * **Análisis de la misión:** Identificación del problema[cite: 1].
-    * **Reunión de información:** Exposiciones preliminares[cite: 1].
-    * **Orientación:** Directivas iniciales del Comandante[cite: 1].
-    * **Análisis de la situación:** Determinación de factores de fuerza y debilidad[cite: 1].
-    * **Elaboración de MMACC:** Modos de acción propios y capacidades del enemigo[cite: 1].
-    * **Confrontación:** Prueba de factibilidad y aceptabilidad inicial[cite: 1].
-    * **Comparación:** Determinación de ventajas, desventajas y riesgos[cite: 1].
-    * **Resolución:** Enunciado del plan general[cite: 1].
-    """)
-    
-    st.subheader("3. Cronograma de Actividades")
-    if 'cronograma' not in st.session_state:
-        # Se inicializa con strings vacíos para permitir carga 100% manual
-        st.session_state.cronograma = pd.DataFrame(
-            columns=["Actividad", "Responsable", "Hora", "Completado"],
-            data=[["", "", "", False] for _ in range(5)]
-        )
-    
-    # Editor nativo sin forzar formatos de tiempo
-    cronograma_actualizado = st.data_editor(
-        st.session_state.cronograma, 
-        num_rows="dynamic", 
-        use_container_width=True,
-        hide_index=True
-    )
-    st.session_state.cronograma = cronograma_actualizado
-    
-    st.subheader("4. Evolución del Planeamiento")
-    df_valido = cronograma_actualizado[cronograma_actualizado["Actividad"].str.strip() != ""]
-    
-    if not df_valido.empty:
-        total_tareas = len(df_valido)
-        tareas_completadas = df_valido["Completado"].sum()
-        porcentaje_avance = (tareas_completadas / total_tareas) * 100
-        
-        # Única barra de progreso visual
-        st.progress(int(porcentaje_avance), text=f"Avance del Planeamiento: {int(porcentaje_avance)}%")
-    else:
-        st.warning("Comience a cargar actividades en el cronograma para visualizar la evolución.")
-
-# ----------------- PANEL COMANDANTE -----------------
-elif rol == "Comandante":
-    st.header("Tablero de Comando y Resolución")
-    
-    vrc_base_propio = sum(item['VRC'] for item in st.session_state.get('g3', {}).get('fuerzas_propias', []))
-    vrc_base_eno = sum(item['VRC'] for item in st.session_state.get('g2', {}).get('fuerzas_eno', []))
-    
-    # Factores multiplicadores consolidados de la Plana Mayor
-    mod_g1_moral = st.session_state.g1.get('moral', 1.0)
-    mod_g2_terreno = st.session_state.g2.get('terreno', 1.0)
-    mod_g4_logistico = st.session_state.g4.get('vehiculos_servicio', 100) / 100.0
-    
-    # Cálculo Integrado del Poder de Combate Relativo (PCR)
-    poder_propio = vrc_base_propio * mod_g1_moral * mod_g2_terreno * mod_g4_logistico
-    poder_eno = vrc_base_eno * mod_g2_terreno
-    
-    pcr_real = poder_propio / poder_eno if poder_eno > 0 else 0
-    
-    col1, col2, col3 = st.columns(3)
-    col1.metric("Poder de Combate Propio (Ajustado)", f"{poder_propio:.2f}")
-    col2.metric("Poder de Combate Eno (Ajustado)", f"{poder_eno:.2f}")
-    col3.metric("PCR RESULTANTE", f"{pcr_real:.2f} : 1")
-    
-    exigencia_pcr = st.session_state.g3.get('pcr_requerido', 1.0)
-    
-    if pcr_real >= exigencia_pcr:
-        st.success(f"✅ FACTIBLE: El PCR actual ({pcr_real:.2f}) supera la exigencia doctrinaria para la operación (Requiere {exigencia_pcr}).")
-    else:
-        st.error(f"⚠️ RIESGO TÁCTICO INACEPTABLE: El PCR de {pcr_real:.2f} es inferior al umbral doctrinario de {exigencia_pcr}.")
-        
-    if st.session_state.g4.get('vehiculos_servicio', 100) < 60:
-        st.warning("⚠️ ALERTA LOGÍSTICA (G4): La tasa de vehículos en servicio es crítica, amenazando la movilidad de la operación.")
-        st.divider()
-    st.subheader("Análisis de Sensibilidad de Riesgo (What-If)")
-    st.markdown("Mapa de calor del PCR proyectando fluctuaciones en Logística y Moral.")
-    
-    # Generar matriz cruzada (Moral vs Vehículos en Servicio)
-    valores_moral = [0.5, 1.0, 1.5, 2.0]  # Baja, Normal, Alta, Muy Alta
-    valores_logistica = [0.4, 0.6, 0.8, 1.0] # 40%, 60%, 80%, 100% en servicio
-    
-    matriz_pcr = np.zeros((len(valores_moral), len(valores_logistica)))
-    
-    for i, m in enumerate(valores_moral):
-        for j, log in enumerate(valores_logistica):
-            # Recalcular PCR para cada escenario
-            p_propio_sim = vrc_base_propio * m * mod_g2_terreno * log
-            matriz_pcr[i, j] = p_propio_sim / poder_eno if poder_eno > 0 else 0
-            
-    df_sensibilidad = pd.DataFrame(
-        matriz_pcr, 
-        index=["Moral Baja", "Moral Normal", "Moral Alta", "Moral Muy Alta"],
-        columns=["Log 40%", "Log 60%", "Log 80%", "Log 100%"]
-    )
-    
-   # Renderizar matriz de sensibilidad sin depender de matplotlib
-    st.dataframe(
-        df_sensibilidad.style.format("{:.2f}"),
-        use_container_width=True
-    )
-    st.caption(f"El umbral requerido para el éxito actual es {exigencia_pcr}:1.")
+    st.info(f"Multiplicador Logístico: x{mod_g4:.2f} (Impactará directamente en el PCR).")
 
 # ----------------- PANEL CONFRONTACIÓN (JUEGO DE GUERRA) -----------------
 elif rol == "Confrontación (Juego de Guerra)":
     st.header("Matriz de Confrontación Automatizada")
     st.markdown("Simulación de incidentes y cálculo de degradación residual (ROD-71-01-II, Anexo 3 y 8)[cite: 1].")
     
-    # Inicializar registro de confrontación
     if 'log_confrontacion' not in st.session_state:
         st.session_state.log_confrontacion = []
         
-    # Obtener VRC iniciales de las sesiones G2 y G3
     vrc_base_propio = sum(item['VRC'] for item in st.session_state.get('g3', {}).get('fuerzas_propias', []))
     vrc_base_eno = sum(item['VRC'] for item in st.session_state.get('g2', {}).get('fuerzas_eno', []))
     
-    # Calcular VRC residual basado en el historial de incidentes
     vrc_residual_propio = vrc_base_propio
     vrc_residual_eno = vrc_base_eno
     
@@ -458,11 +353,11 @@ elif rol == "Confrontación (Juego de Guerra)":
         
         col_g3, col_g2 = st.columns(2)
         with col_g3:
-            accion_g3 = st.text_area("Acción G3 (Azul)", placeholder="Ej: Ataque frontal con 1 Ca I Mec...")
+            accion_g3 = st.text_area("Acción G3 (Azul)")
             deg_g3 = st.number_input("Degradación Estimada Propia (%)", min_value=0, max_value=100, value=15)
             
         with col_g2:
-            reaccion_g2 = st.text_area("Reacción G2 (Colorado)", placeholder="Ej: Fuego de contrapreparación...")
+            reaccion_g2 = st.text_area("Reacción G2 (Colorado)")
             deg_g2 = st.number_input("Degradación Estimada Enemiga (%)", min_value=0, max_value=100, value=10)
             
         if st.form_submit_button("Resolver Incidente y Aplicar Fricción"):
@@ -479,14 +374,124 @@ elif rol == "Confrontación (Juego de Guerra)":
     st.subheader("Historial de la Maniobra")
     if st.session_state.log_confrontacion:
         st.dataframe(pd.DataFrame(st.session_state.log_confrontacion), use_container_width=True)
-        
         if st.button("Deshacer último incidente"):
             st.session_state.log_confrontacion.pop()
             st.rerun()
 
+# ----------------- PANEL JEFE PLANA MAYOR -----------------
+elif rol == "Jefe de la Plana Mayor":
+    st.header("Jefe de la Plana Mayor: Sincronización y Control")
+    
+    st.subheader("1. Estado Actual de la Plana Mayor")
+    col_s1, col_s2, col_s3, col_s4 = st.columns(4)
+    col_s1.metric("Moral (G1)", st.session_state.get('g1', {}).get('moral', 'S/D'))
+    col_s2.metric("VRC Enemigo (G2)", sum(item['VRC'] for item in st.session_state.get('g2', {}).get('fuerzas_eno', [])))
+    col_s3.metric("VRC Propio (G3)", sum(item['VRC'] for item in st.session_state.get('g3', {}).get('fuerzas_propias', [])))
+    col_s4.metric("Vehículos en Servicio (G4)", f"{st.session_state.get('g4', {}).get('vehiculos_servicio', 100)}%")
+    
+    st.divider()
+    st.subheader("2. Guía del Proceso de Planificación de Comando (PPC)")
+    st.info("""
+    * **Análisis de la misión:** Identificación del problema[cite: 1].
+    * **Reunión de información:** Exposiciones preliminares[cite: 1].
+    * **Orientación:** Directivas iniciales del Comandante[cite: 1].
+    * **Análisis de la situación:** Determinación de factores de fuerza y debilidad[cite: 1].
+    * **Elaboración de MMACC:** Modos de acción propios y capacidades del enemigo[cite: 1].
+    * **Confrontación:** Prueba de factibilidad y aceptabilidad inicial[cite: 1].
+    * **Comparación:** Determinación de ventajas, desventajas y riesgos[cite: 1].
+    * **Resolución:** Enunciado del plan general[cite: 1].
+    """)
+    
+    st.subheader("3. Cronograma de Actividades")
+    if 'cronograma' not in st.session_state:
+        st.session_state.cronograma = pd.DataFrame(
+            columns=["Actividad", "Responsable", "Hora", "Completado"],
+            data=[["", "", "", False] for _ in range(5)]
+        )
+    
+    cronograma_actualizado = st.data_editor(
+        st.session_state.cronograma, 
+        num_rows="dynamic", 
+        use_container_width=True,
+        hide_index=True
+    )
+    st.session_state.cronograma = cronograma_actualizado
+    
+    st.subheader("4. Evolución del Planeamiento")
+    df_valido = cronograma_actualizado[cronograma_actualizado["Actividad"].str.strip() != ""]
+    
+    if not df_valido.empty:
+        total_tareas = len(df_valido)
+        tareas_completadas = df_valido["Completado"].sum()
+        porcentaje_avance = (tareas_completadas / total_tareas) * 100
+        st.progress(int(porcentaje_avance), text=f"Avance del Planeamiento: {int(porcentaje_avance)}%")
+    else:
+        st.warning("Comience a cargar actividades en el cronograma para visualizar la evolución.")
+
+# ----------------- PANEL COMANDANTE -----------------
+elif rol == "Comandante":
+    st.header("Tablero de Comando y Resolución")
+    
+    vrc_base_propio = sum(item['VRC'] for item in st.session_state.get('g3', {}).get('fuerzas_propias', []))
+    vrc_base_eno = sum(item['VRC'] for item in st.session_state.get('g2', {}).get('fuerzas_eno', []))
+    
+    mod_g1_moral = st.session_state.g1.get('moral', 1.0)
+    mod_g2_terreno = st.session_state.g2.get('terreno', 1.0)
+    mod_g4_logistico = st.session_state.g4.get('vehiculos_servicio', 100) / 100.0
+    
+    poder_propio = vrc_base_propio * mod_g1_moral * mod_g2_terreno * mod_g4_logistico
+    poder_eno = vrc_base_eno * mod_g2_terreno
+    
+    pcr_real = poder_propio / poder_eno if poder_eno > 0 else 0
+    
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Poder de Combate Propio (Ajustado)", f"{poder_propio:.2f}")
+    col2.metric("Poder de Combate Eno (Ajustado)", f"{poder_eno:.2f}")
+    col3.metric("PCR RESULTANTE", f"{pcr_real:.2f} : 1")
+    
+    exigencia_pcr = st.session_state.g3.get('pcr_requerido', 1.0)
+    
+    if pcr_real >= exigencia_pcr:
+        st.success(f"✅ FACTIBLE: El PCR actual ({pcr_real:.2f}) supera la exigencia doctrinaria para la operación (Requiere {exigencia_pcr}).")
+    else:
+        st.error(f"⚠️ RIESGO TÁCTICO INACEPTABLE: El PCR de {pcr_real:.2f} es inferior al umbral doctrinario de {exigencia_pcr}.")
+        
+    if st.session_state.g4.get('vehiculos_servicio', 100) < 60:
+        st.warning("⚠️ ALERTA LOGÍSTICA (G4): La tasa de vehículos en servicio es crítica.")
+
+    st.divider()
+    st.subheader("Análisis de Sensibilidad de Riesgo (What-If)")
+    st.markdown("Mapa de calor del PCR proyectando fluctuaciones en Logística y Moral.")
+    
+    valores_moral = [0.5, 1.0, 1.5, 2.0]
+    valores_logistica = [0.4, 0.6, 0.8, 1.0]
+    
+    matriz_pcr = np.zeros((len(valores_moral), len(valores_logistica)))
+    
+    for i, m in enumerate(valores_moral):
+        for j, log in enumerate(valores_logistica):
+            p_propio_sim = vrc_base_propio * m * mod_g2_terreno * log
+            matriz_pcr[i, j] = p_propio_sim / poder_eno if poder_eno > 0 else 0
+            
+    df_sensibilidad = pd.DataFrame(
+        matriz_pcr, 
+        index=["Moral Baja", "Moral Normal", "Moral Alta", "Moral Muy Alta"],
+        columns=["Log 40%", "Log 60%", "Log 80%", "Log 100%"]
+    )
+    
+    st.dataframe(
+        df_sensibilidad.style.format("{:.2f}"),
+        use_container_width=True
+    )
+    st.caption(f"El umbral requerido para el éxito actual es {exigencia_pcr}:1.")
+
 # ----------------- PANEL GESTIÓN DE DATOS -----------------
 elif rol == "Gestión de Datos":
     st.header("Gestión del Monitor")
+    st.markdown("Limpieza de la matriz de estado.")
+    
+    st.divider()
+    st.markdown("**Reinicio del Sistema**")
     st.markdown("Elimina todas las unidades cargadas y restablece los parámetros a sus valores nominales.")
     if st.button("⚠️ Limpiar Tablero de Comando", type="primary"):
         for key in list(st.session_state.keys()):
