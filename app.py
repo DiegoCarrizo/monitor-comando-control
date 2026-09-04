@@ -1,6 +1,5 @@
 import streamlit as st
 import pandas as pd
-#from fpdf import FPDF
 
 st.set_page_config(page_title="Monitor C2 - Estado Mayor", layout="wide")
 
@@ -403,70 +402,15 @@ elif rol == "Jefe de la Plana Mayor":
         st.bar_chart(resumen_responsables, color=["#ff4b4b", "#00cc96"]) # Rojo para pendiente, verde para finalizado
     else:
         st.warning("Comience a cargar actividades en el cronograma para visualizar las métricas de evolución.")
-        # ----------------- PANEL GESTIÓN DE DATOS -----------------
+       # ----------------- PANEL GESTIÓN DE DATOS -----------------
 elif rol == "Gestión de Datos":
-    st.header("Gestión del Monitor y Exportación")
-    st.markdown("Generación de Anexos y limpieza de la matriz de estado.")
+    st.header("Gestión del Monitor")
+    st.markdown("Limpieza de la matriz de estado.")
     
-    st.markdown("**Exportar Apreciación de Situación (PDF)**")
-    #if st.button("Generar Reporte PDF"):
-        pdf = FPDF()
-        pdf.add_page()
-        pdf.set_font("Arial", 'B', 16)
-        pdf.cell(200, 10, txt="Monitor de Comando y Control - Resumen", ln=True, align='C')
-        pdf.ln(5)
-        
-        # Extraer datos de memoria
-        g1 = st.session_state.get('g1', {})
-        g2 = st.session_state.get('g2', {})
-        g3 = st.session_state.get('g3', {})
-        g4 = st.session_state.get('g4', {})
-        
-        pdf.set_font("Arial", 'B', 12)
-        pdf.cell(200, 10, txt="G1 - Personal", ln=True)
-        pdf.set_font("Arial", size=10)
-        pdf.cell(200, 10, txt=f"Moral (Calculada): {g1.get('moral', 'N/A')} | Exp: {g1.get('experiencia', 'N/A')}", ln=True)
-        
-        pdf.set_font("Arial", 'B', 12)
-        pdf.cell(200, 10, txt="G2 - Inteligencia", ln=True)
-        pdf.set_font("Arial", size=10)
-        pdf.cell(200, 10, txt=f"Ambiente: {g2.get('ambiente', 'N/A')} | Terreno: {g2.get('terreno', 'N/A')}", ln=True)
-        for eno in g2.get('fuerzas_eno', []):
-            pdf.cell(200, 10, txt=f"- {eno['Elemento']} (VRC: {eno['VRC']})", ln=True)
-            
-        pdf.set_font("Arial", 'B', 12)
-        pdf.cell(200, 10, txt="G3 - Operaciones", ln=True)
-        pdf.set_font("Arial", size=10)
-        pdf.cell(200, 10, txt=f"Operación: {g3.get('tipo_operacion', 'N/A')} | PCR Requerido: {g3.get('pcr_requerido', 'N/A')}", ln=True)
-        for prop in g3.get('fuerzas_propias', []):
-            pdf.cell(200, 10, txt=f"- {prop['Elemento']} (VRC: {prop['VRC']})", ln=True)
-            
-        pdf.set_font("Arial", 'B', 12)
-        pdf.cell(200, 10, txt="G4 - Materiales", ln=True)
-        pdf.set_font("Arial", size=10)
-        pdf.cell(200, 10, txt=f"Mun (Cl V): {g4.get('clase_v', 'N/A')}% | Comb (Cl III): {g4.get('clase_iii', 'N/A')}%", ln=True)
-        pdf.set_font("Arial", 'B', 12)
-        pdf.cell(200, 10, txt="Evolución del Planeamiento (J Pl My)", ln=True)
-        pdf.set_font("Arial", size=10)
-        
-        df_cron = st.session_state.get('cronograma', pd.DataFrame())
-        df_valido = df_cron[df_cron["Actividad"].str.strip() != ""] if not df_cron.empty else pd.DataFrame()
-        
-        if not df_valido.empty:
-            avance = (df_valido["Completado"].sum() / len(df_valido)) * 100
-            pdf.cell(200, 10, txt=f"Avance Total: {int(avance)}%", ln=True)
-            for index, row in df_valido.iterrows():
-                estado = "Finalizado" if row['Completado'] else "Pendiente"
-                pdf.cell(200, 10, txt=f"- {row['Actividad']} ({row['Responsable']}): {estado}", ln=True)
-        
-        # Procesar y descargar
-        pdf_bytes = pdf.output(dest='S').encode('latin-1')
-        st.download_button(label="📥 Descargar Apreciación en PDF", data=pdf_bytes, file_name="apreciacion_situacion.pdf", mime="application/pdf")
-        
     st.divider()
     st.markdown("**Reinicio del Sistema**")
     st.markdown("Elimina todas las unidades cargadas y restablece los parámetros a sus valores nominales.")
     if st.button("⚠️ Limpiar Tablero de Comando", type="primary"):
-        for key in st.session_state.keys():
+        for key in list(st.session_state.keys()):
             del st.session_state[key]
         st.rerun()
