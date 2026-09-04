@@ -7,7 +7,7 @@ st.set_page_config(page_title="Monitor C2 - Estado Mayor", layout="wide")
 if 'g1' not in st.session_state:
     st.session_state.g1 = {'experiencia': 1.0, 'personal_permanente': 1.0, 'moral': 1.0}
 if 'g2' not in st.session_state:
-    st.session_state.g2 = {'terreno': 1.0, 'clima': 1.0, 'fuerzas_eno': []}
+    st.session_state.g2 = {'terreno': 1.0, 'clima': 1.0, 'fuerzas_eno': [], 'ambiente': 'Llanura'}
 if 'g3' not in st.session_state:
     st.session_state.g3 = {'fuerzas_propias': [], 'tipo_operacion': 'Ataque Frontal', 'pcr_requerido': 3.0}
 if 'g4' not in st.session_state:
@@ -15,16 +15,12 @@ if 'g4' not in st.session_state:
 
 # Menú lateral
 st.sidebar.title("Áreas de Conducción")
-rol = st.sidebar.radio("Seleccione Panel:", ["G1 - Personal", "G2 - Inteligencia", "G3 - Operaciones", "G4 - Materiales", "Comandante"])
-rol = st.sidebar.radio("Seleccione Panel:", ["G1 - Personal", "G2 - Inteligencia", "G3 - Operaciones", "G4 - Materiales", "Comandante", "Gestión de Datos"])
 rol = st.sidebar.radio("Seleccione Panel:", ["G1 - Personal", "G2 - Inteligencia", "G3 - Operaciones", "G4 - Materiales", "Jefe de la Plana Mayor", "Comandante", "Gestión de Datos"])
 
 # ----------------- PANEL G1 -----------------
 if rol == "G1 - Personal":
     st.header("G1: Carga Manual y Cálculo Analítico de Personal")
-    st.markdown("Evaluación matemática según parámetros de experiencia y bajas (Ref. ROD-71-01-II, Anexo 7)[cite: 1]")
     
-    # 1. Efectivos y Experiencia
     st.subheader("1. Efectivos y Experiencia de Combate")
     col1, col2 = st.columns(2)
     with col1:
@@ -32,7 +28,6 @@ if rol == "G1 - Personal":
     with col2:
         exp_combate = st.number_input("Personal con Experiencia en Combate", min_value=0, max_value=total_efectivos, value=0)
     
-    # 2. Instrucción
     st.subheader("2. Nivel de Instrucción")
     niveles = {"Alta instrucción": 1.0, "Mediana instrucción": 0.75, "Baja instrucción": 0.5}
     col_of, col_subof, col_sold = st.columns(3)
@@ -43,7 +38,6 @@ if rol == "G1 - Personal":
     with col_sold:
         inst_sold = st.selectbox("Soldados", list(niveles.keys()), index=1)
         
-    # 3. Bajas (Estado de Fuerzas)
     st.subheader("3. Bajas y Fricción (Desgaste)")
     cb1, cb2, cb3, cb4 = st.columns(4)
     with cb1:
@@ -55,92 +49,67 @@ if rol == "G1 - Personal":
     with cb4:
         desertores = st.number_input("Desertores", min_value=0, value=0)
         
-    # --- CÁLCULO MATEMÁTICO ---
-    
-    # A. Experiencia (Fórmula ROD-71-01-II)[cite: 1]
     sin_exp = total_efectivos - exp_combate
     factor_exp = ((sin_exp * 0.1) + (exp_combate * 1.0)) / total_efectivos
     st.session_state.g1['experiencia'] = factor_exp
     
-    # B. Instrucción (Promedio ponderado del cuadro)
     factor_instruccion = (niveles[inst_of] + niveles[inst_subof] + niveles[inst_sold]) / 3
     st.session_state.g1['personal_permanente'] = factor_instruccion
     
-    # C. Moral (Modelo matemático por impacto de bajas)
     bajas_totales = muertos + heridos + desaparecidos + desertores
     efectivos_reales = total_efectivos - bajas_totales
     
     impacto_moral = 0
     if total_efectivos > 0:
-        # Los heridos y desaparecidos tienen impacto lineal. Los muertos y desertores castigan el doble la moral.
         impacto_bajas = (heridos + desaparecidos) / total_efectivos
         impacto_critico = (muertos + (desertores * 2)) / total_efectivos 
         impacto_moral = impacto_bajas + impacto_critico
         
-    # Asignación de escala doctrinaria (ROD-71-01-II)[cite: 1]
     if impacto_moral == 0 and factor_instruccion > 0.8:
-        moral_calc = 2.0
-        moral_text = "Muy Alta"
+        moral_calc = 2.0; moral_text = "Muy Alta"
     elif impacto_moral < 0.05:
-        moral_calc = 1.5
-        moral_text = "Alta"
+        moral_calc = 1.5; moral_text = "Alta"
     elif impacto_moral < 0.15:
-        moral_calc = 1.0
-        moral_text = "Normal"
+        moral_calc = 1.0; moral_text = "Normal"
     elif impacto_moral < 0.30:
-        moral_calc = 0.5
-        moral_text = "Baja"
+        moral_calc = 0.5; moral_text = "Baja"
     else:
-        moral_calc = 0.2
-        moral_text = "Muy Baja"
+        moral_calc = 0.2; moral_text = "Muy Baja"
         
     st.session_state.g1['moral'] = moral_calc
     
-    # --- RESULTADOS ---
     st.divider()
     st.subheader("Síntesis del Panel G1")
     rc1, rc2, rc3 = st.columns(3)
-    rc1.metric("Efectivos en Condiciones", f"{efectivos_reales}", f"-{bajas_totales} bajas totales", delta_color="inverse")
+    rc1.metric("Efectivos en Condiciones", f"{efectivos_reales}", f"-{bajas_totales} bajas")
     rc2.metric("Estado Moral Calculado", moral_text, f"Multiplicador: {moral_calc}")
-    
-    # Capacidad de Combate según Personal (Multiplicador Compuesto)
     capacidad_personal = factor_exp * factor_instruccion * moral_calc
-    rc3.metric("Capacidad de Combate (Personal)", f"{capacidad_personal:.2f}", "Fuerza Humana Ponderada")
-    
-    st.info("Los coeficientes matemáticos de moral, instrucción y experiencia han sido enviados al Tablero del Comandante para ajustar el PCR general.")
+    rc3.metric("Capacidad de Combate", f"{capacidad_personal:.2f}")
+
 # ----------------- PANEL G2 -----------------
 elif rol == "G2 - Inteligencia":
     st.header("G2: Ambiente Geográfico y Orden de Batalla Enemigo")
-    st.markdown("Evaluación matemática de capacidades enemigas y terreno operacional (Ref. ROD-71-01-II, Anexo 7)[cite: 1]")
     
-    # 1. Ambiente Geográfico y Terreno
     st.subheader("1. Entorno y Terreno a Operar")
     ambientes = ["Insular", "Desértico", "Desértico Patagónico", "Montaña", "Monte", "Llanura", "Urbano"]
-    st.session_state.g2['ambiente'] = st.selectbox("Ambiente Geográfico Principal", ambientes)
+    st.session_state.g2['ambiente'] = st.selectbox("Ambiente Geográfico", ambientes)
     
     terreno_eno = st.selectbox("Aptitud del Terreno para el Enemigo", ["Favorable", "Limitado", "Desfavorable"])
-    # Asignación de ponderación al PCR del enemigo
     mod_terreno = {"Favorable": 1.2, "Limitado": 0.8, "Desfavorable": 0.5}
     st.session_state.g2['terreno'] = mod_terreno[terreno_eno]
     
-    st.info(f"Modificador de terreno enemigo fijado en: x{st.session_state.g2['terreno']} (Este valor alterará el PCR en el panel del Comandante).")
-    
     st.divider()
-    
-    # 2. Carga Parametrizada de Fuerzas Enemigas
     st.subheader("2. Ponderación Analítica de Elementos Enemigos")
     
     with st.form("form_eno_avanzado"):
         tipo_eno = st.text_input("Denominación del Elemento (Ej: Batallón de Infantería Enemigo)")
-        
         col_fza, col_alc = st.columns(2)
         with col_fza:
             efectivos_pie = st.number_input("Número Relativo de Fuerzas a Pie", min_value=0, value=100)
-            autonomia = st.number_input("Autonomía Operativa (Km/Días de alcance logístico)", min_value=0.0, value=50.0, step=10.0)
+            autonomia = st.number_input("Autonomía Operativa (Km)", min_value=0.0, value=50.0, step=10.0)
         with col_alc:
-            alcance_armas = st.number_input("Alcance Promedio Armas de Dotación (Km)", min_value=0.0, value=2.0, step=0.1)
+            alcance_armas = st.number_input("Alcance Promedio Armas (Km)", min_value=0.0, value=2.0, step=0.1)
             
-        st.markdown("**Capacidades Tecnológicas Agregadas (Multiplicadores de Fuerza)**")
         col_t1, col_t2, col_t3 = st.columns(3)
         with col_t1:
             has_drones = st.checkbox("Sistemas Drones / UAS")
@@ -152,70 +121,49 @@ elif rol == "G2 - Inteligencia":
         submit_eno = st.form_submit_button("Calcular VRC y Cargar al Tablero")
         
         if submit_eno and tipo_eno:
-            # A. Ecuación base de combate (Masa + Fuego + Proyección)
             vrc_base = (efectivos_pie * 0.01) + (alcance_armas * 0.15) + (autonomia * 0.005)
-            
-            # B. Ponderaciones tecnológicas
             mod_drones = 1.25 if has_drones else 1.0
-            # Si tiene termográfica, anula la nocturna estándar por superioridad[cite: 1]
             mod_optica = 1.35 if has_termografica else (1.15 if has_nocturna else 1.0)
-            
             vrc_calculado = vrc_base * mod_drones * mod_optica
             
-            # Se guarda con la clave 'VRC' para mantener compatibilidad con la suma del Panel Comandante
             st.session_state.g2['fuerzas_eno'].append({
-                'Elemento': tipo_eno,
-                'VRC': round(vrc_calculado, 2),
-                'Base': round(vrc_base, 2),
-                'Armas(Km)': alcance_armas,
-                'Fza Pie': efectivos_pie
+                'Elemento': tipo_eno, 'VRC': round(vrc_calculado, 2),
+                'Base': round(vrc_base, 2), 'Armas(Km)': alcance_armas, 'Fza Pie': efectivos_pie
             })
             
     if st.session_state.g2['fuerzas_eno']:
         st.dataframe(pd.DataFrame(st.session_state.g2['fuerzas_eno']), use_container_width=True)
-        vrc_bruto_eno = sum(item['VRC'] for item in st.session_state.g2['fuerzas_eno'])
-        
-        c_res1, c_res2 = st.columns(2)
-        c_res1.metric("VRC Bruto Enemigo (Sin Terreno)", f"{vrc_bruto_eno:.2f}")
-        c_res2.metric("VRC Enemigo Proyectado (Con Terreno)", f"{(vrc_bruto_eno * st.session_state.g2['terreno']):.2f}")
 
 # ----------------- PANEL G3 -----------------
 elif rol == "G3 - Operaciones":
     st.header("G3: Maniobra, Exploración y Poder de Combate Propio")
-    st.markdown("Diseño de la operación y cálculo de PCR integrando multiplicadores de G1[cite: 1]")
     
-    # 1. Selección Dinámica del Tipo de Operación
     tipo_op_principal = st.selectbox("Clasificación de la Operación", ["Ofensiva", "Defensiva", "Complementaria"])
     
     if tipo_op_principal == "Ofensiva":
-        op_detallada = st.selectbox("Tipo de Operación Ofensiva", ["Ataque Ruptura (5:1)", "Ataque Frontal (3:1)", "Ataque Envolvente", "Explotación"])
+        op_detallada = st.selectbox("Tipo", ["Ataque Ruptura (5:1)", "Ataque Frontal (3:1)", "Ataque Envolvente", "Explotación"])
     elif tipo_op_principal == "Defensiva":
-        op_detallada = st.selectbox("Tipo de Operación Defensiva", ["Defensa de Zona (0.33:1)", "Defensa Móvil", "Acción Retardante"])
+        op_detallada = st.selectbox("Tipo", ["Defensa de Zona (0.33:1)", "Defensa Móvil", "Acción Retardante"])
     else:
-        op_detallada = st.selectbox("Tipo de Operación Complementaria", ["Exploración", "Seguridad", "Marcha de Aproximación", "Infiltración"])
+        op_detallada = st.selectbox("Tipo", ["Exploración", "Seguridad", "Marcha de Aproximación", "Infiltración"])
         
     st.session_state.g3['tipo_operacion'] = op_detallada.split(" ")[0]
     
-    # Asignación de PCR Requerido doctrinario (si aplica)
     if "(" in op_detallada:
         st.session_state.g3['pcr_requerido'] = float(op_detallada.split("(")[1].split(":")[0])
     else:
-        st.session_state.g3['pcr_requerido'] = 1.0 # Valor nominal para operaciones sin PCR estricto
+        st.session_state.g3['pcr_requerido'] = 1.0
         
     st.divider()
-    st.subheader(f"Diseño del Elemento para: {st.session_state.g3['tipo_operacion']}")
     
-    # 2. Formulario Dinámico de Carga de Medios y Personal
     with st.form("form_op_propia"):
-        elemento_nombre = st.text_input("Unidad / Fracción a emplear", placeholder="Ej: Escuadrón de Exploración de Caballería Blindado 11")
-        
+        elemento_nombre = st.text_input("Unidad / Fracción a emplear")
         col_amb, col_luz = st.columns(2)
         with col_amb:
-            ambiente = st.selectbox("Ambiente Geográfico de la Operación", ["Insular", "Desértico", "Desértico Patagónico", "Montaña", "Monte", "Llanura", "Urbano"], index=5)
+            ambiente = st.selectbox("Ambiente Geográfico", ["Insular", "Desértico", "Desértico Patagónico", "Montaña", "Monte", "Llanura", "Urbano"], index=5)
         with col_luz:
             condicion_luz = st.selectbox("Condición de Iluminación", ["Diurna", "Nocturna"])
             
-        st.markdown("**Personal y Material de Dotación**")
         col_p, col_a, col_v = st.columns(3)
         with col_p:
             efectivos = st.number_input("Cantidad de Personal Empleado", min_value=1, value=50)
@@ -224,108 +172,52 @@ elif rol == "G3 - Operaciones":
         with col_v:
             autonomia = st.number_input("Autonomía de Vehículos (Km)", min_value=0.0, value=300.0, step=10.0)
             
-        st.markdown("**Capacidades Tecnológicas Propias**")
         col_v1, col_v2 = st.columns(2)
         with col_v1:
-            vn_estandar = st.checkbox("Sistemas de Visión Nocturna Estándar")
+            vn_estandar = st.checkbox("Visión Nocturna Estándar")
         with col_v2:
-            vn_termo = st.checkbox("Sistemas de Visión Termográfica")
+            vn_termo = st.checkbox("Visión Termográfica")
             
-        st.markdown("**Desarrollo y Tiempos**")
         tiempo_est = st.number_input("Tiempo Estimado de Ejecución (Horas)", min_value=1, value=12)
-        fases_op = st.text_area("Fases de la Operación (Manual)", placeholder="Ej: 1. Infiltración. 2. Ocupación PO. 3. Vigilancia. 4. Exfiltración.")
+        fases_op = st.text_area("Fases de la Operación")
         
-        submit_g3 = st.form_submit_button("Calcular PCR del Elemento y Asignar")
+        submit_g3 = st.form_submit_button("Calcular PCR y Asignar")
         
         if submit_g3 and elemento_nombre:
-            # A. Ecuación base (Equivalente al cálculo G2 para estandarización)
             vrc_base = (efectivos * 0.01) + (alcance * 0.15) + (autonomia * 0.005)
-            
-            # B. Ponderación por visibilidad y tecnología (ROD-71-01-II, Tabla de Oportunidad)[cite: 1]
             mod_optica = 1.0
             if condicion_luz == "Nocturna":
                 if vn_termo:
-                    mod_optica = 1.5 # Superioridad tecnológica
+                    mod_optica = 1.5
                 elif vn_estandar:
-                    mod_optica = 1.0 # Compensa la penalidad nocturna
+                    mod_optica = 1.0
                 else:
-                    mod_optica = 0.5 # Severa penalidad sin instrumentos
+                    mod_optica = 0.5
             
-            # C. Integración de la Moral (Desde G1)
             moral_actual = st.session_state.g1.get('moral', 1.0)
-            
-            # Cálculo final del VRC de la fracción
             vrc_final = vrc_base * mod_optica * moral_actual
             
             st.session_state.g3['fuerzas_propias'].append({
-                'Elemento': elemento_nombre,
-                'VRC': round(vrc_final, 2),
-                'Base': round(vrc_base, 2),
-                'Luz': condicion_luz,
-                'Moral G1': moral_actual,
-                'Fases': fases_op
+                'Elemento': elemento_nombre, 'VRC': round(vrc_final, 2),
+                'Base': round(vrc_base, 2), 'Luz': condicion_luz,
+                'Moral G1': moral_actual, 'Fases': fases_op
             })
             
-    # 3. Visualización de Resultados
     if st.session_state.g3['fuerzas_propias']:
         st.dataframe(pd.DataFrame(st.session_state.g3['fuerzas_propias']), use_container_width=True)
-        vrc_bruto_propio = sum(item['VRC'] for item in st.session_state.g3['fuerzas_propias'])
-        
-        c_r1, c_r2 = st.columns(2)
-        c_r1.metric("VRC Total Propio (Integrado con Moral y Óptica)", f"{vrc_bruto_propio:.2f}")
-        c_r2.metric("PCR Doctrinario Requerido", f"{st.session_state.g3['pcr_requerido']}:1")
 
 # ----------------- PANEL G4 -----------------
 elif rol == "G4 - Materiales":
     st.header("G4: Sostenimiento y Restricciones Logísticas")
-    st.markdown("Defina los porcentajes actuales de abastecimiento operativo.")
-    
-    st.session_state.g4['clase_i'] = st.slider("Clase I (Racionamiento) %", 0, 100, st.session_state.g4['clase_i'])
-    st.session_state.g4['clase_iii'] = st.slider("Clase III (Combustibles y Lubricantes) %", 0, 100, st.session_state.g4['clase_iii'])
-    st.session_state.g4['clase_v'] = st.slider("Clase V (Munición) %", 0, 100, st.session_state.g4['clase_v'])
-    st.session_state.g4['vehiculos_servicio'] = st.slider("Tasa de Vehículos en Servicio (Mantenimiento) %", 0, 100, st.session_state.g4['vehiculos_servicio'])
+    st.session_state.g4['clase_i'] = st.slider("Clase I (Racionamiento) %", 0, 100, st.session_state.g4.get('clase_i', 100))
+    st.session_state.g4['clase_iii'] = st.slider("Clase III (Combustibles y Lubricantes) %", 0, 100, st.session_state.g4.get('clase_iii', 100))
+    st.session_state.g4['clase_v'] = st.slider("Clase V (Munición) %", 0, 100, st.session_state.g4.get('clase_v', 100))
+    st.session_state.g4['vehiculos_servicio'] = st.slider("Vehículos en Servicio %", 0, 100, st.session_state.g4.get('vehiculos_servicio', 100))
 
-# ----------------- PANEL COMANDANTE -----------------
-elif rol == "Comandante":
-    st.header("Tablero de Comando y Resolución (Modelo Matemático)")
-    
-    # Cálculos dinámicos
-    vrc_base_propio = sum(item['VRC'] for item in st.session_state.g3['fuerzas_propias'])
-    vrc_base_eno = sum(item['VRC'] for item in st.session_state.g2['fuerzas_eno'])
-    
-    # Factor multiplicador G1 (Promedio de variables según Tabla II)[cite: 1]
-    multiplicador_g1 = (st.session_state.g1['moral'] * st.session_state.g1['personal_permanente'] * st.session_state.g1['experiencia'])
-    
-    # Poder ajustado
-    poder_propio = vrc_base_propio * multiplicador_g1 * st.session_state.g2['terreno'] * st.session_state.g2['clima']
-    poder_eno = vrc_base_eno * st.session_state.g2['terreno']
-    
-    pcr_real = poder_propio / poder_eno if poder_eno > 0 else 0
-    
-    col1, col2, col3 = st.columns(3)
-    col1.metric("Poder de Combate Propio (Ajustado)", f"{poder_propio:.2f}")
-    col2.metric("Poder de Combate Eno (Ajustado)", f"{poder_eno:.2f}")
-    col3.metric("PCR RESULTANTE", f"{pcr_real:.2f} : 1")
-    
-    st.divider()
-    st.subheader("Análisis de Factibilidad y Aceptabilidad")
-    
-    exigencia_pcr = st.session_state.g3['pcr_requerido']
-    alerta_logistica = any(val < 50 for val in st.session_state.g4.values())
-    
-    if pcr_real >= exigencia_pcr and not alerta_logistica:
-        st.success(f"✅ FACTIBLE: El PCR actual ({pcr_real:.2f}) es suficiente para la operación de {st.session_state.g3['tipo_operacion']} (Requiere {exigencia_pcr}). Logística en parámetros aceptables.")
-    elif pcr_real < exigencia_pcr:
-        st.error(f"⚠️ RIESGO MATEMÁTICO: El PCR de {pcr_real:.2f} es inferior al umbral doctrinario de {exigencia_pcr} para esta operación.")
-    
-    if alerta_logistica:
-        st.warning("⚠️ ALERTA LOGÍSTICA (G4): Al menos una clase de abastecimiento o la tasa de mantenimiento se encuentra por debajo del 50%, amenazando la continuidad operacional.")
-        # ----------------- PANEL JEFE DE LA PLANA MAYOR -----------------
+# ----------------- PANEL JEFE PLANA MAYOR -----------------
 elif rol == "Jefe de la Plana Mayor":
     st.header("Jefe de la Plana Mayor: Sincronización y Control")
-    st.markdown("Supervisión del Proceso de Planificación de Comando (PPC) y evolución del planeamiento[cite: 1].")
     
-    # 1. Síntesis Rápida de la Plana Mayor
     st.subheader("1. Estado Actual de la Plana Mayor")
     col_s1, col_s2, col_s3, col_s4 = st.columns(4)
     col_s1.metric("Moral (G1)", st.session_state.get('g1', {}).get('moral', 'S/D'))
@@ -334,81 +226,76 @@ elif rol == "Jefe de la Plana Mayor":
     col_s4.metric("Munición (G4)", f"{st.session_state.get('g4', {}).get('clase_v', 0)}%")
     
     st.divider()
-    
-    # 2. Guía Doctrinaria del Cronograma
     st.subheader("2. Guía del Proceso de Planificación de Comando (PPC)")
     st.info("""
-    **Secuencia reglamentaria sugerida para el planeamiento (ROD-71-01-II, Anexo 1)**[cite: 1]:
-    *   **Análisis de la misión:** Identificación del problema[cite: 1].
-    *   **Reunión de información:** Exposiciones preliminares de la Plana Mayor[cite: 1].
-    *   **Orientación:** Directivas iniciales del Comandante[cite: 1].
-    *   **Análisis de la situación:** Determinación de factores de fuerza y debilidad[cite: 1].
-    *   **Elaboración de MMACC:** Modos de acción propios y capacidades del enemigo[cite: 1].
-    *   **Confrontación:** Prueba de factibilidad y aceptabilidad inicial[cite: 1].
-    *   **Comparación:** Determinación de ventajas, desventajas y riesgos[cite: 1].
-    *   **Resolución:** Enunciado del plan general y esquema general de maniobra[cite: 1].
+    * **Análisis de la misión:** Identificación del problema.
+    * **Reunión de información:** Exposiciones preliminares.
+    * **Orientación:** Directivas iniciales del Comandante.
+    * **Análisis de la situación:** Determinación de factores de fuerza y debilidad.
+    * **Elaboración de MMACC:** Modos de acción propios y capacidades del enemigo.
+    * **Confrontación:** Prueba de factibilidad y aceptabilidad inicial.
+    * **Comparación:** Determinación de ventajas, desventajas y riesgos.
+    * **Resolución:** Enunciado del plan general.
     """)
     
-    # 3. Cronograma Interactivo en Blanco
     st.subheader("3. Cronograma de Actividades")
-    
-    # Inicializar cronograma vacío si no existe
     if 'cronograma' not in st.session_state:
         st.session_state.cronograma = pd.DataFrame(
             columns=["Actividad", "Responsable", "Hora Límite", "Completado"],
-            data=[["", "", "", False] for _ in range(5)] # 5 filas en blanco por defecto
+            data=[["", "", "", False] for _ in range(5)]
         )
     
-    # Editor interactivo (permite agregar/borrar filas y tildar checks)
     cronograma_actualizado = st.data_editor(
-        st.session_state.cronograma,
-        num_rows="dynamic",
-        use_container_width=True,
-        column_config={
-            "Completado": st.column_config.CheckboxColumn("Completado", default=False),
-            "Hora Límite": st.column_config.TimeColumn("Hora Límite", format="HH:mm")
-        }
+        st.session_state.cronograma, num_rows="dynamic", use_container_width=True,
+        column_config={"Completado": st.column_config.CheckboxColumn("Completado", default=False),
+                       "Hora Límite": st.column_config.TimeColumn("Hora Límite", format="HH:mm")}
     )
-    
-    # Guardar cambios en la sesión
     st.session_state.cronograma = cronograma_actualizado
     
-    # 4. Gráfico de Evolución y Rigor Profesional
     st.subheader("4. Evolución del Planeamiento")
-    
-    # Filtrar filas vacías para el cálculo
     df_valido = cronograma_actualizado[cronograma_actualizado["Actividad"].str.strip() != ""]
-    
     if not df_valido.empty:
         total_tareas = len(df_valido)
         tareas_completadas = df_valido["Completado"].sum()
         porcentaje_avance = (tareas_completadas / total_tareas) * 100
-        
-        # Barra de progreso nativa
         st.progress(int(porcentaje_avance), text=f"Avance del Planeamiento: {int(porcentaje_avance)}%")
         
-        # Gráfico de rigor analítico (Estado de tareas por responsable)
         resumen_responsables = df_valido.groupby(["Responsable", "Completado"]).size().unstack(fill_value=0)
-        
-        # Asegurar que existan ambas columnas (True/False) para el gráfico
-        if True not in resumen_responsables:
-            resumen_responsables[True] = 0
-        if False not in resumen_responsables:
-            resumen_responsables[False] = 0
-            
+        if True not in resumen_responsables: resumen_responsables[True] = 0
+        if False not in resumen_responsables: resumen_responsables[False] = 0
         resumen_responsables.rename(columns={True: "Finalizado", False: "Pendiente"}, inplace=True)
-        
-        st.markdown("**Carga de Trabajo y Cumplimiento por Área**")
-        st.bar_chart(resumen_responsables, color=["#ff4b4b", "#00cc96"]) # Rojo para pendiente, verde para finalizado
+        st.bar_chart(resumen_responsables, color=["#ff4b4b", "#00cc96"])
+
+# ----------------- PANEL COMANDANTE -----------------
+elif rol == "Comandante":
+    st.header("Tablero de Comando y Resolución")
+    
+    vrc_base_propio = sum(item['VRC'] for item in st.session_state.get('g3', {}).get('fuerzas_propias', []))
+    vrc_base_eno = sum(item['VRC'] for item in st.session_state.get('g2', {}).get('fuerzas_eno', []))
+    
+    poder_propio = vrc_base_propio * st.session_state.g1.get('moral', 1.0) * st.session_state.g2.get('terreno', 1.0)
+    poder_eno = vrc_base_eno * st.session_state.g2.get('terreno', 1.0)
+    
+    pcr_real = poder_propio / poder_eno if poder_eno > 0 else 0
+    
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Poder de Combate Propio", f"{poder_propio:.2f}")
+    col2.metric("Poder de Combate Eno", f"{poder_eno:.2f}")
+    col3.metric("PCR RESULTANTE", f"{pcr_real:.2f} : 1")
+    
+    exigencia_pcr = st.session_state.g3.get('pcr_requerido', 1.0)
+    alerta_logistica = any(val < 50 for val in st.session_state.get('g4', {'a':100}).values())
+    
+    if pcr_real >= exigencia_pcr and not alerta_logistica:
+        st.success(f"✅ FACTIBLE: El PCR actual ({pcr_real:.2f}) es suficiente para la operación (Requiere {exigencia_pcr}).")
     else:
-        st.warning("Comience a cargar actividades en el cronograma para visualizar las métricas de evolución.")
-       # ----------------- PANEL GESTIÓN DE DATOS -----------------
+        st.error(f"⚠️ RIESGO MATEMÁTICO: El PCR de {pcr_real:.2f} es inferior al umbral doctrinario de {exigencia_pcr}.")
+    if alerta_logistica:
+        st.warning("⚠️ ALERTA LOGÍSTICA: Parámetros de G4 críticos.")
+
+# ----------------- PANEL GESTIÓN DE DATOS -----------------
 elif rol == "Gestión de Datos":
     st.header("Gestión del Monitor")
-    st.markdown("Limpieza de la matriz de estado.")
-    
-    st.divider()
-    st.markdown("**Reinicio del Sistema**")
     st.markdown("Elimina todas las unidades cargadas y restablece los parámetros a sus valores nominales.")
     if st.button("⚠️ Limpiar Tablero de Comando", type="primary"):
         for key in list(st.session_state.keys()):
