@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-from fpdf import FPDF
+#from fpdf import FPDF
 
 st.set_page_config(page_title="Monitor C2 - Estado Mayor", layout="wide")
 
@@ -409,7 +409,7 @@ elif rol == "Gestión de Datos":
     st.markdown("Generación de Anexos y limpieza de la matriz de estado.")
     
     st.markdown("**Exportar Apreciación de Situación (PDF)**")
-    if st.button("Generar Reporte PDF"):
+    #if st.button("Generar Reporte PDF"):
         pdf = FPDF()
         pdf.add_page()
         pdf.set_font("Arial", 'B', 16)
