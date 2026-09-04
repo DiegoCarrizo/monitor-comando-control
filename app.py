@@ -18,7 +18,6 @@ st.sidebar.title("Áreas de Conducción")
 rol = st.sidebar.radio("Seleccione Panel:", ["G1 - Personal", "G2 - Inteligencia", "G3 - Operaciones", "G4 - Materiales", "Comandante"])
 
 # ----------------- PANEL G1 -----------------
-# ----------------- PANEL G1 -----------------
 if rol == "G1 - Personal":
     st.header("G1: Carga Manual y Cálculo Analítico de Personal")
     st.markdown("Evaluación matemática según parámetros de experiencia y bajas (Ref. ROD-71-01-II, Anexo 7)[cite: 1]")
@@ -109,26 +108,74 @@ if rol == "G1 - Personal":
     st.info("Los coeficientes matemáticos de moral, instrucción y experiencia han sido enviados al Tablero del Comandante para ajustar el PCR general.")
 # ----------------- PANEL G2 -----------------
 elif rol == "G2 - Inteligencia":
-    st.header("G2: Carga Manual de Enemigo y Ambiente Operacional")
-    st.markdown("Cálculos de fricción geográfica (Anexo 7 - Tabla I)[cite: 1]")
+    st.header("G2: Ambiente Geográfico y Orden de Batalla Enemigo")
+    st.markdown("Evaluación matemática de capacidades enemigas y terreno operacional (Ref. ROD-71-01-II, Anexo 7)[cite: 1]")
     
-    col_t, col_c = st.columns(2)
-    with col_t:
-        st.session_state.g2['terreno'] = st.number_input("Multiplicador de Terreno (Llanura=1.0, Monte=0.5, Montaña=0.1)", value=st.session_state.g2['terreno'], step=0.1)
-    with col_c:
-        st.session_state.g2['clima'] = st.number_input("Multiplicador de Clima/Aclimatación (0.1 a 1.0)", value=st.session_state.g2['clima'], step=0.1)
+    # 1. Ambiente Geográfico y Terreno
+    st.subheader("1. Entorno y Terreno a Operar")
+    ambientes = ["Insular", "Desértico", "Desértico Patagónico", "Montaña", "Monte", "Llanura", "Urbano"]
+    st.session_state.g2['ambiente'] = st.selectbox("Ambiente Geográfico Principal", ambientes)
+    
+    terreno_eno = st.selectbox("Aptitud del Terreno para el Enemigo", ["Favorable", "Limitado", "Desfavorable"])
+    # Asignación de ponderación al PCR del enemigo
+    mod_terreno = {"Favorable": 1.2, "Limitado": 0.8, "Desfavorable": 0.5}
+    st.session_state.g2['terreno'] = mod_terreno[terreno_eno]
+    
+    st.info(f"Modificador de terreno enemigo fijado en: x{st.session_state.g2['terreno']} (Este valor alterará el PCR en el panel del Comandante).")
     
     st.divider()
-    st.subheader("Orden de Batalla Enemigo (Manual)")
-    with st.form("form_eno"):
-        tipo_eno = st.text_input("Elemento Enemigo Detectado (Ej: Ca I Mec Eno)")
-        vrc_eno = st.number_input("Valor Relativo de Combate (VRC)", min_value=0.0, step=0.1)
-        submit_eno = st.form_submit_button("Cargar Fuerza Enemiga")
+    
+    # 2. Carga Parametrizada de Fuerzas Enemigas
+    st.subheader("2. Ponderación Analítica de Elementos Enemigos")
+    
+    with st.form("form_eno_avanzado"):
+        tipo_eno = st.text_input("Denominación del Elemento (Ej: Batallón de Infantería Enemigo)")
+        
+        col_fza, col_alc = st.columns(2)
+        with col_fza:
+            efectivos_pie = st.number_input("Número Relativo de Fuerzas a Pie", min_value=0, value=100)
+            autonomia = st.number_input("Autonomía Operativa (Km/Días de alcance logístico)", min_value=0.0, value=50.0, step=10.0)
+        with col_alc:
+            alcance_armas = st.number_input("Alcance Promedio Armas de Dotación (Km)", min_value=0.0, value=2.0, step=0.1)
+            
+        st.markdown("**Capacidades Tecnológicas Agregadas (Multiplicadores de Fuerza)**")
+        col_t1, col_t2, col_t3 = st.columns(3)
+        with col_t1:
+            has_drones = st.checkbox("Sistemas Drones / UAS")
+        with col_t2:
+            has_nocturna = st.checkbox("Capacidad Nocturna Estándar")
+        with col_t3:
+            has_termografica = st.checkbox("Visión Termográfica Avanzada")
+            
+        submit_eno = st.form_submit_button("Calcular VRC y Cargar al Tablero")
+        
         if submit_eno and tipo_eno:
-            st.session_state.g2['fuerzas_eno'].append({'Elemento': tipo_eno, 'VRC': vrc_eno})
+            # A. Ecuación base de combate (Masa + Fuego + Proyección)
+            vrc_base = (efectivos_pie * 0.01) + (alcance_armas * 0.15) + (autonomia * 0.005)
+            
+            # B. Ponderaciones tecnológicas
+            mod_drones = 1.25 if has_drones else 1.0
+            # Si tiene termográfica, anula la nocturna estándar por superioridad[cite: 1]
+            mod_optica = 1.35 if has_termografica else (1.15 if has_nocturna else 1.0)
+            
+            vrc_calculado = vrc_base * mod_drones * mod_optica
+            
+            # Se guarda con la clave 'VRC' para mantener compatibilidad con la suma del Panel Comandante
+            st.session_state.g2['fuerzas_eno'].append({
+                'Elemento': tipo_eno,
+                'VRC': round(vrc_calculado, 2),
+                'Base': round(vrc_base, 2),
+                'Armas(Km)': alcance_armas,
+                'Fza Pie': efectivos_pie
+            })
             
     if st.session_state.g2['fuerzas_eno']:
         st.dataframe(pd.DataFrame(st.session_state.g2['fuerzas_eno']), use_container_width=True)
+        vrc_bruto_eno = sum(item['VRC'] for item in st.session_state.g2['fuerzas_eno'])
+        
+        c_res1, c_res2 = st.columns(2)
+        c_res1.metric("VRC Bruto Enemigo (Sin Terreno)", f"{vrc_bruto_eno:.2f}")
+        c_res2.metric("VRC Enemigo Proyectado (Con Terreno)", f"{(vrc_bruto_eno * st.session_state.g2['terreno']):.2f}")
 
 # ----------------- PANEL G3 -----------------
 elif rol == "G3 - Operaciones":
