@@ -417,12 +417,12 @@ elif rol == "Comandante":
         columns=["Log 40%", "Log 60%", "Log 80%", "Log 100%"]
     )
     
-    # Renderizar mapa de calor
+   # Renderizar matriz de sensibilidad sin depender de matplotlib
     st.dataframe(
-        df_sensibilidad.style.background_gradient(cmap='RdYlGn', vmin=exigencia_pcr*0.5, vmax=exigencia_pcr*1.5).format("{:.2f}"),
+        df_sensibilidad.style.format("{:.2f}"),
         use_container_width=True
     )
-    st.caption(f"Verde oscuro indica PCR óptimo. El umbral requerido para el éxito actual es {exigencia_pcr}:1.")
+    st.caption(f"El umbral requerido para el éxito actual es {exigencia_pcr}:1.")
 
 # ----------------- PANEL GESTIÓN DE DATOS -----------------
 elif rol == "Gestión de Datos":
