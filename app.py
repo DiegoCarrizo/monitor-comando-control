@@ -424,6 +424,66 @@ elif rol == "Comandante":
     )
     st.caption(f"El umbral requerido para el éxito actual es {exigencia_pcr}:1.")
 
+# ----------------- PANEL CONFRONTACIÓN (JUEGO DE GUERRA) -----------------
+elif rol == "Confrontación (Juego de Guerra)":
+    st.header("Matriz de Confrontación Automatizada")
+    st.markdown("Simulación de incidentes y cálculo de degradación residual (ROD-71-01-II, Anexo 3 y 8)[cite: 1].")
+    
+    # Inicializar registro de confrontación
+    if 'log_confrontacion' not in st.session_state:
+        st.session_state.log_confrontacion = []
+        
+    # Obtener VRC iniciales de las sesiones G2 y G3
+    vrc_base_propio = sum(item['VRC'] for item in st.session_state.get('g3', {}).get('fuerzas_propias', []))
+    vrc_base_eno = sum(item['VRC'] for item in st.session_state.get('g2', {}).get('fuerzas_eno', []))
+    
+    # Calcular VRC residual basado en el historial de incidentes
+    vrc_residual_propio = vrc_base_propio
+    vrc_residual_eno = vrc_base_eno
+    
+    for choque in st.session_state.log_confrontacion:
+        vrc_residual_propio -= (vrc_residual_propio * (choque['Degradación G3 %'] / 100))
+        vrc_residual_eno -= (vrc_residual_eno * (choque['Degradación G2 %'] / 100))
+        
+    c1, c2, c3 = st.columns(3)
+    c1.metric("VRC Propio (Disponible)", f"{vrc_residual_propio:.2f}", f"Inicial: {vrc_base_propio:.2f}")
+    c2.metric("VRC Enemigo (Disponible)", f"{vrc_residual_eno:.2f}", f"Inicial: {vrc_base_eno:.2f}")
+    c3.metric("PCR Local", f"{(vrc_residual_propio / vrc_residual_eno if vrc_residual_eno > 0 else 0):.2f} : 1")
+    
+    st.divider()
+    
+    **Registro de Nuevo Incidente Táctico**
+    with st.form("form_incidente"):
+        fase_incidente = st.text_input("Etapa / Incidente (Ej: Franquear Río Blanco)")
+        
+        col_g3, col_g2 = st.columns(2)
+        with col_g3:
+            accion_g3 = st.text_area("Acción G3 (Azul)", placeholder="Ej: Ataque frontal con 1 Ca I Mec...")
+            deg_g3 = st.number_input("Degradación Estimada Propia (%)", min_value=0, max_value=100, value=15)
+            
+        with col_g2:
+            reaccion_g2 = st.text_area("Reacción G2 (Colorado)", placeholder="Ej: Fuego de contrapreparación...")
+            deg_g2 = st.number_input("Degradación Estimada Enemiga (%)", min_value=0, max_value=100, value=10)
+            
+        if st.form_submit_button("Resolver Incidente y Aplicar Fricción"):
+            if fase_incidente:
+                st.session_state.log_confrontacion.append({
+                    "Incidente": fase_incidente,
+                    "Acción (G3)": accion_g3,
+                    "Reacción (G2)": reaccion_g2,
+                    "Degradación G3 %": deg_g3,
+                    "Degradación G2 %": deg_g2
+                })
+                st.rerun()
+
+    **Historial de la Maniobra**
+    if st.session_state.log_confrontacion:
+        st.dataframe(pd.DataFrame(st.session_state.log_confrontacion), use_container_width=True)
+        
+        if st.button("Deshacer último incidente"):
+            st.session_state.log_confrontacion.pop()
+            st.rerun()
+
 # ----------------- PANEL GESTIÓN DE DATOS -----------------
 elif rol == "Gestión de Datos":
     st.header("Gestión del Monitor")
