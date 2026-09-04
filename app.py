@@ -6,7 +6,7 @@ import altair as alt
 
 st.set_page_config(page_title="Monitor C2 - Escuadrón", layout="wide")
 
-# Inicialización de bases de datos temporales (Nivel S - Unidad/Subunidad)
+# Inicialización de bases de datos temporales (Doctrina Unidad/Subunidad)
 if 's1' not in st.session_state:
     st.session_state.s1 = {'experiencia': 1.0, 'moral': 1.0, 'bajas_predictivas': 0}
 if 's2' not in st.session_state:
@@ -14,17 +14,17 @@ if 's2' not in st.session_state:
 if 's3' not in st.session_state:
     st.session_state.s3 = {'fuerzas_propias': [], 'tipo_operacion': 'Ataque', 'pcr_requerido': 3.0, 'vrc_fuegos': 0}
 if 's4' not in st.session_state:
-    st.session_state.s4 = {'vehiculos_servicio': 100, 'vehiculos': [], 'municion': [], 'stock_combustible': 10000}
-if 's6' not in st.session_state:
-    st.session_state.s6 = {'eficiencia_c2': 1.0}
+    st.session_state.s4 = {
+        'stock_combustible': 10000, 'stock_municion': 5000, 'stock_lubricante': 500,
+        'asignaciones': [], 'vehiculos_servicio': 100, 'eficiencia_c2': 1.0
+    }
 
 st.sidebar.title("Plana Mayor (Escuadrón)")
 rol = st.sidebar.radio("Seleccione Panel:", [
-    "S1 - Personal", 
+    "S1 - Personal y Sanidad", 
     "S2 - Inteligencia", 
     "S3 - Operaciones y Fuegos", 
-    "S4 - Logística y Sanidad",
-    "S6 - Comunicaciones", 
+    "S4 - Logística y Comunicaciones",
     "Confrontación (Monte Carlo)", 
     "Jefe de la Plana Mayor", 
     "Comandante", 
@@ -32,8 +32,8 @@ rol = st.sidebar.radio("Seleccione Panel:", [
 ])
 
 # ----------------- PANEL S1 -----------------
-if rol == "S1 - Personal":
-    st.header("S1: Efectivos, Moral y Proyección de Bajas")
+if rol == "S1 - Personal y Sanidad":
+    st.header("S1: Efectivos, Moral y Sanidad (MEDEVAC)")
     
     col1, col2 = st.columns(2)
     with col1: total_efectivos = st.number_input("Total de Efectivos", min_value=1, value=150)
@@ -62,8 +62,18 @@ if rol == "S1 - Personal":
     
     bajas_proyectadas = int(efectivos_reales * deg_dict[op_futura])
     st.session_state.s1['bajas_predictivas'] = bajas_proyectadas
+    st.metric("Bajas Estimadas para la Operación", f"{bajas_proyectadas} efectivos", delta_color="inverse")
+
+    st.divider()
+    st.subheader("Sanidad y Evacuación Médica")
+    ambulancias = st.number_input("Ambulancias Disponibles (M113 / Unimog)", min_value=0, value=2)
+    capacidad_evac = ambulancias * 4 # 4 camillas por vehículo aprox
     
-    st.metric("Bajas Estimadas para la Operación", f"{bajas_proyectadas} efectivos", "Requiere previsión de MEDEVAC en S4", delta_color="inverse")
+    st.metric("Capacidad de Evacuación Simultánea", f"{capacidad_evac} pacientes")
+    if bajas_proyectadas > capacidad_evac:
+        st.error(f"⚠️ PELIGRO: Las bajas proyectadas ({bajas_proyectadas}) superan la capacidad de evacuación. El Puesto Socorro colapsará sin apoyo exterior.")
+    else:
+        st.success("✅ Capacidad MEDEVAC suficiente para la operación planificada.")
 
 # ----------------- PANEL S2 -----------------
 elif rol == "S2 - Inteligencia":
@@ -120,42 +130,53 @@ elif rol == "S3 - Operaciones y Fuegos":
         st.session_state.s3['vrc_fuegos'] = 0
 
 # ----------------- PANEL S4 -----------------
-elif rol == "S4 - Logística y Sanidad":
-    st.header("S4: Sostenimiento, Munición y Evacuación")
+elif rol == "S4 - Logística y Comunicaciones":
+    st.header("S4: Sostenimiento, Abastecimiento y Comunicaciones")
     
-    st.subheader("1. Sanidad (MEDEVAC)")
-    ambulancias = st.number_input("Ambulancias Disponibles (M113 / Unimog)", min_value=0, value=2)
-    capacidad_evac = ambulancias * 4 # 4 camillas por vehículo aprox
-    bajas_esperadas = st.session_state.s1.get('bajas_predictivas', 0)
-    
-    st.metric("Capacidad de Evacuación Simultánea", f"{capacidad_evac} pacientes")
-    if bajas_esperadas > capacidad_evac:
-        st.error(f"⚠️ PELIGRO: Las bajas proyectadas por S1 ({bajas_esperadas}) superan la capacidad de evacuación médica. El Puesto Socorro colapsará.")
-    else:
-        st.success("✅ Capacidad MEDEVAC suficiente para la operación planificada.")
-        
-    st.divider()
-    st.subheader("2. Proyección de Consumo de Munición")
-    stock_mun = st.number_input("Stock Total Munición Principal (Tiros)", value=10000)
-    op_actual = st.session_state.s3.get('tipo_operacion', 'Exploración')
-    
-    # Cálculo dinámico según operación
-    tasas_consumo = {"Ataque": 0.40, "Exploración": 0.10, "Defensa": 0.25}
-    tasa = tasas_consumo.get(op_actual, 0.1)
-    consumo_proyectado = int(stock_mun * tasa)
-    
-    c1, c2 = st.columns(2)
-    c1.metric(f"Consumo Proyectado para {op_actual}", f"{consumo_proyectado} tiros")
-    c2.metric("Reserva Post-Operación", f"{stock_mun - consumo_proyectado} tiros")
-    
-    st.divider()
-    st.session_state.s4['vehiculos_servicio'] = st.slider("Vehículos Tácticos en Servicio %", 0, 100, 100)
+    st.subheader("1. Stock General del Escuadrón (Tren Logístico)")
+    c1, c2, c3 = st.columns(3)
+    st.session_state.s4['stock_combustible'] = c1.number_input("Combustible Existente (Lts)", min_value=0, value=st.session_state.s4['stock_combustible'])
+    st.session_state.s4['stock_municion'] = c2.number_input("Munición Existente (Tiros)", min_value=0, value=st.session_state.s4['stock_municion'])
+    st.session_state.s4['stock_lubricante'] = c3.number_input("Lubricante Existente (Kg/Lts)", min_value=0, value=st.session_state.s4['stock_lubricante'])
 
-# ----------------- PANEL S6 -----------------
-elif rol == "S6 - Comunicaciones":
-    st.header("S6: Enlace y Sistema de Comando y Control (C2)")
+    st.divider()
+    st.subheader("2. Asignación de Efectos a Subunidades")
+    with st.form("form_asignacion"):
+        elem_asig = st.text_input("Elemento a Abastecer (Ej: 1ra Sección Bl)")
+        ca1, ca2, ca3 = st.columns(3)
+        with ca1: asig_comb = st.number_input("Clase III - Combustible (Lts)", min_value=0, value=0)
+        with ca2: asig_mun = st.number_input("Clase V - Munición (Tiros)", min_value=0, value=0)
+        with ca3: asig_lub = st.number_input("Clase III - Lubricantes", min_value=0, value=0)
+        
+        if st.form_submit_button("Entregar Material") and elem_asig:
+            st.session_state.s4['asignaciones'].append({
+                "Elemento": elem_asig, "Combustible": asig_comb, "Munición": asig_mun, "Lubricante": asig_lub
+            })
+
+    # Cálculo dinámico de consumo y saldos
+    tot_comb = sum(item["Combustible"] for item in st.session_state.s4['asignaciones'])
+    tot_mun = sum(item["Munición"] for item in st.session_state.s4['asignaciones'])
+    tot_lub = sum(item["Lubricante"] for item in st.session_state.s4['asignaciones'])
+
+    rest_comb = st.session_state.s4['stock_combustible'] - tot_comb
+    rest_mun = st.session_state.s4['stock_municion'] - tot_mun
+    rest_lub = st.session_state.s4['stock_lubricante'] - tot_lub
+
+    st.subheader("3. Saldos Logísticos (Disponibilidad Real)")
+    cr1, cr2, cr3 = st.columns(3)
+    cr1.metric("Combustible Restante", f"{rest_comb} Lts", f"-{tot_comb} asignados", delta_color="inverse")
+    cr2.metric("Munición Restante", f"{rest_mun} Tiros", f"-{tot_mun} asignados", delta_color="inverse")
+    cr3.metric("Lubricante Restante", f"{rest_lub}", f"-{tot_lub} asignados", delta_color="inverse")
     
-    st.markdown("El estado de las mallas de comunicación afecta directamente la capacidad de conducción del Comandante.")
+    if rest_comb < 0 or rest_mun < 0 or rest_lub < 0:
+        st.error("⚠️ ALERTA LOGÍSTICA: Las asignaciones actuales superan el stock general. Quiebre de abastecimiento inminente.")
+
+    if st.session_state.s4['asignaciones']:
+        st.dataframe(pd.DataFrame(st.session_state.s4['asignaciones']), use_container_width=True)
+
+    st.divider()
+    st.subheader("4. Comunicaciones y Enlace (C2)")
+    st.markdown("Operatividad de los medios técnicos de transmisión del Escuadrón.")
     malla_vhf = st.slider("Operatividad Malla VHF (Corta/Media Distancia) %", 0, 100, 100)
     malla_hf = st.slider("Operatividad Malla HF (Larga Distancia) %", 0, 100, 80)
     
@@ -163,12 +184,12 @@ elif rol == "S6 - Comunicaciones":
     with c_nodo: retransmision = st.checkbox("Nodos de Retransmisión Desplegados", value=True)
     with c_cripto: cripto = st.checkbox("Claves Criptográficas Sincronizadas", value=True)
     
-    # Cálculo de fricción del C2
+    # Cálculo de fricción del C2 integrado en S4
     eficiencia_base = (malla_vhf * 0.7 + malla_hf * 0.3) / 100
     if not retransmision: eficiencia_base *= 0.8
     if not cripto: eficiencia_base *= 0.6  # Guerra electrónica enemiga
     
-    st.session_state.s6['eficiencia_c2'] = eficiencia_base
+    st.session_state.s4['eficiencia_c2'] = eficiencia_base
     
     if eficiencia_base >= 0.8:
         st.success(f"✅ Enlace Óptimo. Multiplicador C2: x{eficiencia_base:.2f}")
@@ -176,6 +197,10 @@ elif rol == "S6 - Comunicaciones":
         st.warning(f"⚠️ Enlace Degradado. Multiplicador C2: x{eficiencia_base:.2f}")
     else:
         st.error(f"❌ Pérdida de Comando y Control. Multiplicador C2: x{eficiencia_base:.2f}")
+
+    st.divider()
+    st.subheader("5. Movilidad y Vehículos")
+    st.session_state.s4['vehiculos_servicio'] = st.slider("Vehículos Tácticos en Servicio %", 0, 100, st.session_state.s4.get('vehiculos_servicio', 100))
 
 # ----------------- PANEL CONFRONTACIÓN -----------------
 elif rol == "Confrontación (Monte Carlo)":
@@ -225,6 +250,7 @@ elif rol == "Jefe de la Plana Mayor":
                 ["Análisis de la misión", "J Pl My", "2026-10-01 08:00", "2026-10-01 10:00", False],
                 ["Apreciación Inteligencia", "S2", "2026-10-01 10:00", "2026-10-01 12:00", False],
                 ["Plan de Apoyo de Fuego", "S3", "2026-10-01 12:00", "2026-10-01 14:00", False],
+                ["Apreciación Logística", "S4", "2026-10-01 14:00", "2026-10-01 16:00", False],
                 ["", "", "", "", False]
             ]
         )
@@ -263,9 +289,9 @@ elif rol == "Comandante":
     mod_moral = st.session_state.s1.get('moral', 1.0)
     mod_terreno = st.session_state.s2.get('terreno', 1.0)
     mod_logistico = st.session_state.s4.get('vehiculos_servicio', 100) / 100.0
-    mod_c2 = st.session_state.s6.get('eficiencia_c2', 1.0)
+    mod_c2 = st.session_state.s4.get('eficiencia_c2', 1.0)
     
-    # Cálculo final aplicando fricción de Mando y Control (S6) y suma de Apoyo de Fuegos
+    # Cálculo final aplicando fricción de Mando y Control y suma de Apoyo de Fuegos
     poder_propio = ((vrc_maniobra * mod_moral * mod_logistico) + vrc_fuegos) * mod_terreno * mod_c2
     poder_eno = vrc_base_eno * mod_terreno
     
@@ -283,8 +309,8 @@ elif rol == "Comandante":
     else:
         st.error(f"⚠️ RIESGO INACEPTABLE: El PCR de {pcr_real:.2f} es inferior al umbral de {exigencia_pcr}.")
         
-    if mod_c2 < 0.8: st.warning("⚠️ ALERTA S6: Fricción de mando por comunicaciones degradadas.")
-    if mod_logistico < 0.6: st.warning("⚠️ ALERTA S4: Colapso de movilidad inminente.")
+    if mod_c2 < 0.8: st.warning("⚠️ ALERTA S4 (Comunicaciones): Fricción de mando por comunicaciones degradadas.")
+    if mod_logistico < 0.6: st.warning("⚠️ ALERTA S4 (Materiales): Colapso de movilidad inminente por vehículos fuera de servicio.")
 
 # ----------------- PANEL GESTIÓN -----------------
 elif rol == "Gestión de Datos":
