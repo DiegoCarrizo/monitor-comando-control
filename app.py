@@ -178,27 +178,101 @@ elif rol == "G2 - Inteligencia":
         c_res2.metric("VRC Enemigo Proyectado (Con Terreno)", f"{(vrc_bruto_eno * st.session_state.g2['terreno']):.2f}")
 
 # ----------------- PANEL G3 -----------------
+# ----------------- PANEL G3 -----------------
 elif rol == "G3 - Operaciones":
     st.header("G3: Maniobra, Exploración y Poder de Combate Propio")
+    st.markdown("Diseño de la operación y cálculo de PCR integrando multiplicadores de G1[cite: 1]")
     
-    op = st.selectbox("Operación Táctica (Fija el PCR Requerido)", ["Ataque Ruptura (5:1)", "Ataque Frontal (3:1)", "Defensa de Zona (0.33:1)", "Retardo (0.33:1)"])
-    st.session_state.g3['tipo_operacion'] = op.split(" ")[0]
-    st.session_state.g3['pcr_requerido'] = float(op.split("(")[1].split(":")[0])
+    # 1. Selección Dinámica del Tipo de Operación
+    tipo_op_principal = st.selectbox("Clasificación de la Operación", ["Ofensiva", "Defensiva", "Complementaria"])
     
+    if tipo_op_principal == "Ofensiva":
+        op_detallada = st.selectbox("Tipo de Operación Ofensiva", ["Ataque Ruptura (5:1)", "Ataque Frontal (3:1)", "Ataque Envolvente", "Explotación"])
+    elif tipo_op_principal == "Defensiva":
+        op_detallada = st.selectbox("Tipo de Operación Defensiva", ["Defensa de Zona (0.33:1)", "Defensa Móvil", "Acción Retardante"])
+    else:
+        op_detallada = st.selectbox("Tipo de Operación Complementaria", ["Exploración", "Seguridad", "Marcha de Aproximación", "Infiltración"])
+        
+    st.session_state.g3['tipo_operacion'] = op_detallada.split(" ")[0]
+    
+    # Asignación de PCR Requerido doctrinario (si aplica)
+    if "(" in op_detallada:
+        st.session_state.g3['pcr_requerido'] = float(op_detallada.split("(")[1].split(":")[0])
+    else:
+        st.session_state.g3['pcr_requerido'] = 1.0 # Valor nominal para operaciones sin PCR estricto
+        
     st.divider()
-    st.subheader("Carga Manual de Organización para el Combate")
-    st.markdown("Incluya explícitamente elementos maniobra y **elementos de exploración** (Ej: Esc Expl Guaraní VRC 0.90, Sec Expl Moto TT VRC 0.10)[cite: 1]")
+    st.subheader(f"Diseño del Elemento para: {st.session_state.g3['tipo_operacion']}")
     
-    with st.form("form_propio"):
-        cat_propia = st.selectbox("Categoría", ["Combate Directo (Blindado/Mec)", "Exploración y Seguridad", "Apoyo de Fuego", "Ingenieros"])
-        tipo_propio = st.text_input("Denominación del Elemento (Ej: Esc Expl Cab Bl 11)")
-        vrc_propio = st.number_input("Valor Relativo de Combate (VRC)", min_value=0.0, step=0.1)
-        submit_propio = st.form_submit_button("Cargar Fuerza Propia")
-        if submit_propio and tipo_propio:
-            st.session_state.g3['fuerzas_propias'].append({'Categoría': cat_propia, 'Elemento': tipo_propio, 'VRC': vrc_propio})
+    # 2. Formulario Dinámico de Carga de Medios y Personal
+    with st.form("form_op_propia"):
+        elemento_nombre = st.text_input("Unidad / Fracción a emplear", placeholder="Ej: Escuadrón de Exploración de Caballería Blindado 11")
+        
+        col_amb, col_luz = st.columns(2)
+        with col_amb:
+            ambiente = st.selectbox("Ambiente Geográfico de la Operación", ["Insular", "Desértico", "Desértico Patagónico", "Montaña", "Monte", "Llanura", "Urbano"], index=5)
+        with col_luz:
+            condicion_luz = st.selectbox("Condición de Iluminación", ["Diurna", "Nocturna"])
             
+        st.markdown("**Personal y Material de Dotación**")
+        col_p, col_a, col_v = st.columns(3)
+        with col_p:
+            efectivos = st.number_input("Cantidad de Personal Empleado", min_value=1, value=50)
+        with col_a:
+            alcance = st.number_input("Alcance Promedio Armamento (Km)", min_value=0.0, value=2.5, step=0.1)
+        with col_v:
+            autonomia = st.number_input("Autonomía de Vehículos (Km)", min_value=0.0, value=300.0, step=10.0)
+            
+        st.markdown("**Capacidades Tecnológicas Propias**")
+        col_v1, col_v2 = st.columns(2)
+        with col_v1:
+            vn_estandar = st.checkbox("Sistemas de Visión Nocturna Estándar")
+        with col_v2:
+            vn_termo = st.checkbox("Sistemas de Visión Termográfica")
+            
+        st.markdown("**Desarrollo y Tiempos**")
+        tiempo_est = st.number_input("Tiempo Estimado de Ejecución (Horas)", min_value=1, value=12)
+        fases_op = st.text_area("Fases de la Operación (Manual)", placeholder="Ej: 1. Infiltración. 2. Ocupación PO. 3. Vigilancia. 4. Exfiltración.")
+        
+        submit_g3 = st.form_submit_button("Calcular PCR del Elemento y Asignar")
+        
+        if submit_g3 and elemento_nombre:
+            # A. Ecuación base (Equivalente al cálculo G2 para estandarización)
+            vrc_base = (efectivos * 0.01) + (alcance * 0.15) + (autonomia * 0.005)
+            
+            # B. Ponderación por visibilidad y tecnología (ROD-71-01-II, Tabla de Oportunidad)[cite: 1]
+            mod_optica = 1.0
+            if condicion_luz == "Nocturna":
+                if vn_termo:
+                    mod_optica = 1.5 # Superioridad tecnológica
+                elif vn_estandar:
+                    mod_optica = 1.0 # Compensa la penalidad nocturna
+                else:
+                    mod_optica = 0.5 # Severa penalidad sin instrumentos
+            
+            # C. Integración de la Moral (Desde G1)
+            moral_actual = st.session_state.g1.get('moral', 1.0)
+            
+            # Cálculo final del VRC de la fracción
+            vrc_final = vrc_base * mod_optica * moral_actual
+            
+            st.session_state.g3['fuerzas_propias'].append({
+                'Elemento': elemento_nombre,
+                'VRC': round(vrc_final, 2),
+                'Base': round(vrc_base, 2),
+                'Luz': condicion_luz,
+                'Moral G1': moral_actual,
+                'Fases': fases_op
+            })
+            
+    # 3. Visualización de Resultados
     if st.session_state.g3['fuerzas_propias']:
         st.dataframe(pd.DataFrame(st.session_state.g3['fuerzas_propias']), use_container_width=True)
+        vrc_bruto_propio = sum(item['VRC'] for item in st.session_state.g3['fuerzas_propias'])
+        
+        c_r1, c_r2 = st.columns(2)
+        c_r1.metric("VRC Total Propio (Integrado con Moral y Óptica)", f"{vrc_bruto_propio:.2f}")
+        c_r2.metric("PCR Doctrinario Requerido", f"{st.session_state.g3['pcr_requerido']}:1")
 
 # ----------------- PANEL G4 -----------------
 elif rol == "G4 - Materiales":
