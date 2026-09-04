@@ -18,19 +18,95 @@ st.sidebar.title("Áreas de Conducción")
 rol = st.sidebar.radio("Seleccione Panel:", ["G1 - Personal", "G2 - Inteligencia", "G3 - Operaciones", "G4 - Materiales", "Comandante"])
 
 # ----------------- PANEL G1 -----------------
+# ----------------- PANEL G1 -----------------
 if rol == "G1 - Personal":
-    st.header("G1: Carga Manual de Factores Multiplicadores de Personal")
-    st.markdown("Según Anexo 7 - Tabla II[cite: 1]")
+    st.header("G1: Carga Manual y Cálculo Analítico de Personal")
+    st.markdown("Evaluación matemática según parámetros de experiencia y bajas (Ref. ROD-71-01-II, Anexo 7)[cite: 1]")
     
+    # 1. Efectivos y Experiencia
+    st.subheader("1. Efectivos y Experiencia de Combate")
     col1, col2 = st.columns(2)
     with col1:
-        st.session_state.g1['moral'] = st.number_input("Multiplicador de Moral (Ej: Muy alta=2.0, Normal=1.0, Baja=0.5)", value=st.session_state.g1['moral'], step=0.1)
-        st.session_state.g1['experiencia'] = st.number_input("Experiencia de Combate (Móvil=1.0, Defensivo=0.5, Sin exp=0.1)", value=st.session_state.g1['experiencia'], step=0.1)
+        total_efectivos = st.number_input("Total de Efectivos", min_value=1, value=100)
     with col2:
-        st.session_state.g1['personal_permanente'] = st.number_input("Composición (% Permanente: 100%=1.0, 75%=0.75)", value=st.session_state.g1['personal_permanente'], step=0.05)
+        exp_combate = st.number_input("Personal con Experiencia en Combate", min_value=0, max_value=total_efectivos, value=0)
     
-    st.success("Parámetros de fuerza humana actualizados en el modelo.")
-
+    # 2. Instrucción
+    st.subheader("2. Nivel de Instrucción")
+    niveles = {"Alta instrucción": 1.0, "Mediana instrucción": 0.75, "Baja instrucción": 0.5}
+    col_of, col_subof, col_sold = st.columns(3)
+    with col_of:
+        inst_of = st.selectbox("Oficiales", list(niveles.keys()), index=0)
+    with col_subof:
+        inst_subof = st.selectbox("Suboficiales", list(niveles.keys()), index=0)
+    with col_sold:
+        inst_sold = st.selectbox("Soldados", list(niveles.keys()), index=1)
+        
+    # 3. Bajas (Estado de Fuerzas)
+    st.subheader("3. Bajas y Fricción (Desgaste)")
+    cb1, cb2, cb3, cb4 = st.columns(4)
+    with cb1:
+        muertos = st.number_input("Muertos (KIA)", min_value=0, value=0)
+    with cb2:
+        heridos = st.number_input("Heridos (WIA)", min_value=0, value=0)
+    with cb3:
+        desaparecidos = st.number_input("Desaparecidos (MIA)", min_value=0, value=0)
+    with cb4:
+        desertores = st.number_input("Desertores", min_value=0, value=0)
+        
+    # --- CÁLCULO MATEMÁTICO ---
+    
+    # A. Experiencia (Fórmula ROD-71-01-II)[cite: 1]
+    sin_exp = total_efectivos - exp_combate
+    factor_exp = ((sin_exp * 0.1) + (exp_combate * 1.0)) / total_efectivos
+    st.session_state.g1['experiencia'] = factor_exp
+    
+    # B. Instrucción (Promedio ponderado del cuadro)
+    factor_instruccion = (niveles[inst_of] + niveles[inst_subof] + niveles[inst_sold]) / 3
+    st.session_state.g1['personal_permanente'] = factor_instruccion
+    
+    # C. Moral (Modelo matemático por impacto de bajas)
+    bajas_totales = muertos + heridos + desaparecidos + desertores
+    efectivos_reales = total_efectivos - bajas_totales
+    
+    impacto_moral = 0
+    if total_efectivos > 0:
+        # Los heridos y desaparecidos tienen impacto lineal. Los muertos y desertores castigan el doble la moral.
+        impacto_bajas = (heridos + desaparecidos) / total_efectivos
+        impacto_critico = (muertos + (desertores * 2)) / total_efectivos 
+        impacto_moral = impacto_bajas + impacto_critico
+        
+    # Asignación de escala doctrinaria (ROD-71-01-II)[cite: 1]
+    if impacto_moral == 0 and factor_instruccion > 0.8:
+        moral_calc = 2.0
+        moral_text = "Muy Alta"
+    elif impacto_moral < 0.05:
+        moral_calc = 1.5
+        moral_text = "Alta"
+    elif impacto_moral < 0.15:
+        moral_calc = 1.0
+        moral_text = "Normal"
+    elif impacto_moral < 0.30:
+        moral_calc = 0.5
+        moral_text = "Baja"
+    else:
+        moral_calc = 0.2
+        moral_text = "Muy Baja"
+        
+    st.session_state.g1['moral'] = moral_calc
+    
+    # --- RESULTADOS ---
+    st.divider()
+    st.subheader("Síntesis del Panel G1")
+    rc1, rc2, rc3 = st.columns(3)
+    rc1.metric("Efectivos en Condiciones", f"{efectivos_reales}", f"-{bajas_totales} bajas totales", delta_color="inverse")
+    rc2.metric("Estado Moral Calculado", moral_text, f"Multiplicador: {moral_calc}")
+    
+    # Capacidad de Combate según Personal (Multiplicador Compuesto)
+    capacidad_personal = factor_exp * factor_instruccion * moral_calc
+    rc3.metric("Capacidad de Combate (Personal)", f"{capacidad_personal:.2f}", "Fuerza Humana Ponderada")
+    
+    st.info("Los coeficientes matemáticos de moral, instrucción y experiencia han sido enviados al Tablero del Comandante para ajustar el PCR general.")
 # ----------------- PANEL G2 -----------------
 elif rol == "G2 - Inteligencia":
     st.header("G2: Carga Manual de Enemigo y Ambiente Operacional")
