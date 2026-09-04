@@ -87,6 +87,25 @@ if rol == "G1 - Personal":
     rc2.metric("Estado Moral Calculado", moral_text, f"Multiplicador: {moral_calc}")
     capacidad_personal = factor_exp * factor_instruccion * moral_calc
     rc3.metric("Capacidad de Combate", f"{capacidad_personal:.2f}")
+   
+    st.divider()
+    st.subheader("4. Proyección Predictiva de Desgaste")
+    st.markdown("Cálculo estadístico de bajas según tipo de operación (ROD-71-01-II, Tabla VIII)[cite: 1]")
+    
+    op_futura = st.selectbox("Operación Planificada", ["Ataque Ruptura", "Ataque Frontal", "Infiltración", "Avance para tomar contacto"])
+    degradacion_dict = {"Ataque Ruptura": 0.20, "Ataque Frontal": 0.15, "Infiltración": 0.03, "Avance para tomar contacto": 0.03}
+    
+    tasa_bajas = degradacion_dict[op_futura]
+    bajas_proyectadas = int(efectivos_reales * tasa_bajas)
+    efectivos_residuales = efectivos_reales - bajas_proyectadas
+    
+    st.metric("Efectivos Residuales Proyectados (Post-Operación)", f"{efectivos_residuales}", f"-{bajas_proyectadas} bajas estimadas", delta_color="inverse")
+    
+    chart_data = pd.DataFrame({
+        "Estado": ["Fuerza Inicial", "Bajas Proyectadas", "Fuerza Residual"],
+        "Efectivos": [efectivos_reales, bajas_proyectadas, efectivos_residuales]
+    })
+    st.bar_chart(chart_data.set_index("Estado"))
 
 # ----------------- PANEL G2 -----------------
 elif rol == "G2 - Inteligencia":
@@ -265,19 +284,25 @@ elif rol == "G4 - Materiales":
         st.dataframe(pd.DataFrame(st.session_state.g4['municion']), use_container_width=True)
         
     st.divider()
-    st.subheader("3. Proyección Logística de la Operación")
-    distancia_op = st.number_input("Distancia de la Operación planteada por G3 (Km)", min_value=1.0, value=100.0)
+    st.subheader("3. Proyección del Punto de Culminación (Combustible)")
+    distancia_op = st.number_input("Distancia de Penetración Planificada (Km)", min_value=1.0, value=100.0)
     
     if st.session_state.g4['vehiculos']:
-        consumo_total = 0
-        for v in st.session_state.g4['vehiculos']:
-            consumo_lote = (distancia_op / 100) * v['Lts/100km'] * v['Cant']
-            consumo_total += consumo_lote
-            st.write(f"- **{v['Cant']}x {v['Modelo']}** consumirán **{consumo_lote:.1f} Lts** de {v['Combustible']} en {distancia_op} Km.")
+        consumo_km = sum((v['Lts/100km'] / 100) * v['Cant'] for v in st.session_state.g4['vehiculos'])
+        stock_actual = st.session_state.g4['stock_combustible']
         
-        st.metric("Consumo Total Estimado de Combustible", f"{consumo_total:.1f} Lts")
-        if consumo_total > st.session_state.g4['stock_combustible']:
-            st.error("⚠️ El consumo proyectado supera el stock de combustible disponible. Riesgo de culminación logística.")
+        # Calcular en qué kilómetro exacto se agota el combustible
+        km_culminacion = stock_actual / consumo_km if consumo_km > 0 else 0
+        
+        c_cul1, c_cul2 = st.columns(2)
+        c_cul1.metric("Consumo Promedio de la Columna", f"{consumo_km:.2f} Lts/Km")
+        
+        if km_culminacion < distancia_op:
+            c_cul2.metric("Punto de Culminación Logística", f"Km {km_culminacion:.1f}", "¡Impulso perdido antes del objetivo!", delta_color="inverse")
+            st.error(f"⚠️ La fuerza se detendrá a los {km_culminacion:.1f} Km por falta de combustible.")
+        else:
+            c_cul2.metric("Punto de Culminación Logística", f"Km {km_culminacion:.1f}", "Stock suficiente para el objetivo")
+            st.success("✅ Autonomía logística garantizada para la distancia de la operación.")
             
     st.divider()
     st.subheader("4. Disponibilidad y Aporte al PCR")
@@ -370,6 +395,34 @@ elif rol == "Comandante":
         
     if st.session_state.g4.get('vehiculos_servicio', 100) < 60:
         st.warning("⚠️ ALERTA LOGÍSTICA (G4): La tasa de vehículos en servicio es crítica, amenazando la movilidad de la operación.")
+        st.divider()
+    st.subheader("Análisis de Sensibilidad de Riesgo (What-If)")
+    st.markdown("Mapa de calor del PCR proyectando fluctuaciones en Logística y Moral.")
+    
+    # Generar matriz cruzada (Moral vs Vehículos en Servicio)
+    valores_moral = [0.5, 1.0, 1.5, 2.0]  # Baja, Normal, Alta, Muy Alta
+    valores_logistica = [0.4, 0.6, 0.8, 1.0] # 40%, 60%, 80%, 100% en servicio
+    
+    matriz_pcr = np.zeros((len(valores_moral), len(valores_logistica)))
+    
+    for i, m in enumerate(valores_moral):
+        for j, log in enumerate(valores_logistica):
+            # Recalcular PCR para cada escenario
+            p_propio_sim = vrc_base_propio * m * mod_g2_terreno * log
+            matriz_pcr[i, j] = p_propio_sim / poder_eno if poder_eno > 0 else 0
+            
+    df_sensibilidad = pd.DataFrame(
+        matriz_pcr, 
+        index=["Moral Baja", "Moral Normal", "Moral Alta", "Moral Muy Alta"],
+        columns=["Log 40%", "Log 60%", "Log 80%", "Log 100%"]
+    )
+    
+    # Renderizar mapa de calor
+    st.dataframe(
+        df_sensibilidad.style.background_gradient(cmap='RdYlGn', vmin=exigencia_pcr*0.5, vmax=exigencia_pcr*1.5).format("{:.2f}"),
+        use_container_width=True
+    )
+    st.caption(f"Verde oscuro indica PCR óptimo. El umbral requerido para el éxito actual es {exigencia_pcr}:1.")
 
 # ----------------- PANEL GESTIÓN DE DATOS -----------------
 elif rol == "Gestión de Datos":
