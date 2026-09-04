@@ -242,7 +242,8 @@ elif rol == "Jefe de la Plana Mayor":
     if 'cronograma' not in st.session_state:
         st.session_state.cronograma = pd.DataFrame(
             columns=["Actividad", "Responsable", "Hora Límite", "Completado"],
-            data=[["", "", "", False] for _ in range(5)]
+            # Corrección: Se utiliza None en lugar de "" para evitar la incompatibilidad de formato
+            data=[["", "", None, False] for _ in range(5)]
         )
     
     cronograma_actualizado = st.data_editor(
