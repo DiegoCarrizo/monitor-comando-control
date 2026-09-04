@@ -452,7 +452,7 @@ elif rol == "Confrontación (Juego de Guerra)":
     
     st.divider()
     
-    **Registro de Nuevo Incidente Táctico**
+    st.subheader("Registro de Nuevo Incidente Táctico")
     with st.form("form_incidente"):
         fase_incidente = st.text_input("Etapa / Incidente (Ej: Franquear Río Blanco)")
         
@@ -476,7 +476,7 @@ elif rol == "Confrontación (Juego de Guerra)":
                 })
                 st.rerun()
 
-    **Historial de la Maniobra**
+    st.subheader("Historial de la Maniobra")
     if st.session_state.log_confrontacion:
         st.dataframe(pd.DataFrame(st.session_state.log_confrontacion), use_container_width=True)
         
