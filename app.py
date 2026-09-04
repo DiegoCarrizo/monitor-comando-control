@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import datetime
+import numpy as np
 
 st.set_page_config(page_title="Monitor C2 - Estado Mayor", layout="wide")
 
