@@ -18,6 +18,7 @@ if 'g4' not in st.session_state:
 st.sidebar.title("Áreas de Conducción")
 rol = st.sidebar.radio("Seleccione Panel:", ["G1 - Personal", "G2 - Inteligencia", "G3 - Operaciones", "G4 - Materiales", "Comandante"])
 rol = st.sidebar.radio("Seleccione Panel:", ["G1 - Personal", "G2 - Inteligencia", "G3 - Operaciones", "G4 - Materiales", "Comandante", "Gestión de Datos"])
+rol = st.sidebar.radio("Seleccione Panel:", ["G1 - Personal", "G2 - Inteligencia", "G3 - Operaciones", "G4 - Materiales", "Jefe de la Plana Mayor", "Comandante", "Gestión de Datos"])
 
 # ----------------- PANEL G1 -----------------
 if rol == "G1 - Personal":
@@ -320,6 +321,88 @@ elif rol == "Comandante":
     
     if alerta_logistica:
         st.warning("⚠️ ALERTA LOGÍSTICA (G4): Al menos una clase de abastecimiento o la tasa de mantenimiento se encuentra por debajo del 50%, amenazando la continuidad operacional.")
+        # ----------------- PANEL JEFE DE LA PLANA MAYOR -----------------
+elif rol == "Jefe de la Plana Mayor":
+    st.header("Jefe de la Plana Mayor: Sincronización y Control")
+    st.markdown("Supervisión del Proceso de Planificación de Comando (PPC) y evolución del planeamiento[cite: 1].")
+    
+    # 1. Síntesis Rápida de la Plana Mayor
+    st.subheader("1. Estado Actual de la Plana Mayor")
+    col_s1, col_s2, col_s3, col_s4 = st.columns(4)
+    col_s1.metric("Moral (G1)", st.session_state.get('g1', {}).get('moral', 'S/D'))
+    col_s2.metric("VRC Enemigo (G2)", sum(item['VRC'] for item in st.session_state.get('g2', {}).get('fuerzas_eno', [])))
+    col_s3.metric("VRC Propio (G3)", sum(item['VRC'] for item in st.session_state.get('g3', {}).get('fuerzas_propias', [])))
+    col_s4.metric("Munición (G4)", f"{st.session_state.get('g4', {}).get('clase_v', 0)}%")
+    
+    st.divider()
+    
+    # 2. Guía Doctrinaria del Cronograma
+    st.subheader("2. Guía del Proceso de Planificación de Comando (PPC)")
+    st.info("""
+    **Secuencia reglamentaria sugerida para el planeamiento (ROD-71-01-II, Anexo 1)**[cite: 1]:
+    *   **Análisis de la misión:** Identificación del problema[cite: 1].
+    *   **Reunión de información:** Exposiciones preliminares de la Plana Mayor[cite: 1].
+    *   **Orientación:** Directivas iniciales del Comandante[cite: 1].
+    *   **Análisis de la situación:** Determinación de factores de fuerza y debilidad[cite: 1].
+    *   **Elaboración de MMACC:** Modos de acción propios y capacidades del enemigo[cite: 1].
+    *   **Confrontación:** Prueba de factibilidad y aceptabilidad inicial[cite: 1].
+    *   **Comparación:** Determinación de ventajas, desventajas y riesgos[cite: 1].
+    *   **Resolución:** Enunciado del plan general y esquema general de maniobra[cite: 1].
+    """)
+    
+    # 3. Cronograma Interactivo en Blanco
+    st.subheader("3. Cronograma de Actividades")
+    
+    # Inicializar cronograma vacío si no existe
+    if 'cronograma' not in st.session_state:
+        st.session_state.cronograma = pd.DataFrame(
+            columns=["Actividad", "Responsable", "Hora Límite", "Completado"],
+            data=[["", "", "", False] for _ in range(5)] # 5 filas en blanco por defecto
+        )
+    
+    # Editor interactivo (permite agregar/borrar filas y tildar checks)
+    cronograma_actualizado = st.data_editor(
+        st.session_state.cronograma,
+        num_rows="dynamic",
+        use_container_width=True,
+        column_config={
+            "Completado": st.column_config.CheckboxColumn("Completado", default=False),
+            "Hora Límite": st.column_config.TimeColumn("Hora Límite", format="HH:mm")
+        }
+    )
+    
+    # Guardar cambios en la sesión
+    st.session_state.cronograma = cronograma_actualizado
+    
+    # 4. Gráfico de Evolución y Rigor Profesional
+    st.subheader("4. Evolución del Planeamiento")
+    
+    # Filtrar filas vacías para el cálculo
+    df_valido = cronograma_actualizado[cronograma_actualizado["Actividad"].str.strip() != ""]
+    
+    if not df_valido.empty:
+        total_tareas = len(df_valido)
+        tareas_completadas = df_valido["Completado"].sum()
+        porcentaje_avance = (tareas_completadas / total_tareas) * 100
+        
+        # Barra de progreso nativa
+        st.progress(int(porcentaje_avance), text=f"Avance del Planeamiento: {int(porcentaje_avance)}%")
+        
+        # Gráfico de rigor analítico (Estado de tareas por responsable)
+        resumen_responsables = df_valido.groupby(["Responsable", "Completado"]).size().unstack(fill_value=0)
+        
+        # Asegurar que existan ambas columnas (True/False) para el gráfico
+        if True not in resumen_responsables:
+            resumen_responsables[True] = 0
+        if False not in resumen_responsables:
+            resumen_responsables[False] = 0
+            
+        resumen_responsables.rename(columns={True: "Finalizado", False: "Pendiente"}, inplace=True)
+        
+        st.markdown("**Carga de Trabajo y Cumplimiento por Área**")
+        st.bar_chart(resumen_responsables, color=["#ff4b4b", "#00cc96"]) # Rojo para pendiente, verde para finalizado
+    else:
+        st.warning("Comience a cargar actividades en el cronograma para visualizar las métricas de evolución.")
         # ----------------- PANEL GESTIÓN DE DATOS -----------------
 elif rol == "Gestión de Datos":
     st.header("Gestión del Monitor y Exportación")
@@ -362,6 +445,19 @@ elif rol == "Gestión de Datos":
         pdf.cell(200, 10, txt="G4 - Materiales", ln=True)
         pdf.set_font("Arial", size=10)
         pdf.cell(200, 10, txt=f"Mun (Cl V): {g4.get('clase_v', 'N/A')}% | Comb (Cl III): {g4.get('clase_iii', 'N/A')}%", ln=True)
+        pdf.set_font("Arial", 'B', 12)
+        pdf.cell(200, 10, txt="Evolución del Planeamiento (J Pl My)", ln=True)
+        pdf.set_font("Arial", size=10)
+        
+        df_cron = st.session_state.get('cronograma', pd.DataFrame())
+        df_valido = df_cron[df_cron["Actividad"].str.strip() != ""] if not df_cron.empty else pd.DataFrame()
+        
+        if not df_valido.empty:
+            avance = (df_valido["Completado"].sum() / len(df_valido)) * 100
+            pdf.cell(200, 10, txt=f"Avance Total: {int(avance)}%", ln=True)
+            for index, row in df_valido.iterrows():
+                estado = "Finalizado" if row['Completado'] else "Pendiente"
+                pdf.cell(200, 10, txt=f"- {row['Actividad']} ({row['Responsable']}): {estado}", ln=True)
         
         # Procesar y descargar
         pdf_bytes = pdf.output(dest='S').encode('latin-1')
