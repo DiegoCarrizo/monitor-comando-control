@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import datetime
 
 st.set_page_config(page_title="Monitor C2 - Estado Mayor", layout="wide")
 
@@ -242,14 +243,18 @@ elif rol == "Jefe de la Plana Mayor":
     if 'cronograma' not in st.session_state:
         st.session_state.cronograma = pd.DataFrame(
             columns=["Actividad", "Responsable", "Hora Límite", "Completado"],
-            # Corrección: Se utiliza None en lugar de "" para evitar la incompatibilidad de formato
-            data=[["", "", None, False] for _ in range(5)]
+            # Inicialización con un objeto de tiempo real (08:00) para evitar el choque de tipos
+            data=[["", "", datetime.time(8, 0), False] for _ in range(5)]
         )
     
     cronograma_actualizado = st.data_editor(
-        st.session_state.cronograma, num_rows="dynamic", use_container_width=True,
-        column_config={"Completado": st.column_config.CheckboxColumn("Completado", default=False),
-                       "Hora Límite": st.column_config.TimeColumn("Hora Límite", format="HH:mm")}
+        st.session_state.cronograma, 
+        num_rows="dynamic", 
+        use_container_width=True,
+        column_config={
+            "Completado": st.column_config.CheckboxColumn("Completado", default=False),
+            "Hora Límite": st.column_config.TimeColumn("Hora Límite", format="HH:mm", step=60)
+        }
     )
     st.session_state.cronograma = cronograma_actualizado
     
