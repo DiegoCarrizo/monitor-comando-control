@@ -229,48 +229,45 @@ elif rol == "Jefe de la Plana Mayor":
     st.divider()
     st.subheader("2. Guía del Proceso de Planificación de Comando (PPC)")
     st.info("""
-    * **Análisis de la misión:** Identificación del problema.
-    * **Reunión de información:** Exposiciones preliminares.
-    * **Orientación:** Directivas iniciales del Comandante.
-    * **Análisis de la situación:** Determinación de factores de fuerza y debilidad.
-    * **Elaboración de MMACC:** Modos de acción propios y capacidades del enemigo.
-    * **Confrontación:** Prueba de factibilidad y aceptabilidad inicial.
-    * **Comparación:** Determinación de ventajas, desventajas y riesgos.
-    * **Resolución:** Enunciado del plan general.
+    * **Análisis de la misión:** Identificación del problema[cite: 1].
+    * **Reunión de información:** Exposiciones preliminares[cite: 1].
+    * **Orientación:** Directivas iniciales del Comandante[cite: 1].
+    * **Análisis de la situación:** Determinación de factores de fuerza y debilidad[cite: 1].
+    * **Elaboración de MMACC:** Modos de acción propios y capacidades del enemigo[cite: 1].
+    * **Confrontación:** Prueba de factibilidad y aceptabilidad inicial[cite: 1].
+    * **Comparación:** Determinación de ventajas, desventajas y riesgos[cite: 1].
+    * **Resolución:** Enunciado del plan general[cite: 1].
     """)
     
     st.subheader("3. Cronograma de Actividades")
     if 'cronograma' not in st.session_state:
+        # Se inicializa con strings vacíos para permitir carga 100% manual
         st.session_state.cronograma = pd.DataFrame(
-            columns=["Actividad", "Responsable", "Hora Límite", "Completado"],
-            # Inicialización con un objeto de tiempo real (08:00) para evitar el choque de tipos
-            data=[["", "", datetime.time(8, 0), False] for _ in range(5)]
+            columns=["Actividad", "Responsable", "Hora", "Completado"],
+            data=[["", "", "", False] for _ in range(5)]
         )
     
+    # Editor nativo sin forzar formatos de tiempo
     cronograma_actualizado = st.data_editor(
         st.session_state.cronograma, 
         num_rows="dynamic", 
         use_container_width=True,
-        column_config={
-            "Completado": st.column_config.CheckboxColumn("Completado", default=False),
-            "Hora Límite": st.column_config.TimeColumn("Hora Límite", format="HH:mm", step=60)
-        }
+        hide_index=True
     )
     st.session_state.cronograma = cronograma_actualizado
     
     st.subheader("4. Evolución del Planeamiento")
     df_valido = cronograma_actualizado[cronograma_actualizado["Actividad"].str.strip() != ""]
+    
     if not df_valido.empty:
         total_tareas = len(df_valido)
         tareas_completadas = df_valido["Completado"].sum()
         porcentaje_avance = (tareas_completadas / total_tareas) * 100
-        st.progress(int(porcentaje_avance), text=f"Avance del Planeamiento: {int(porcentaje_avance)}%")
         
-        resumen_responsables = df_valido.groupby(["Responsable", "Completado"]).size().unstack(fill_value=0)
-        if True not in resumen_responsables: resumen_responsables[True] = 0
-        if False not in resumen_responsables: resumen_responsables[False] = 0
-        resumen_responsables.rename(columns={True: "Finalizado", False: "Pendiente"}, inplace=True)
-        st.bar_chart(resumen_responsables, color=["#ff4b4b", "#00cc96"])
+        # Única barra de progreso visual
+        st.progress(int(porcentaje_avance), text=f"Avance del Planeamiento: {int(porcentaje_avance)}%")
+    else:
+        st.warning("Comience a cargar actividades en el cronograma para visualizar la evolución.")
 
 # ----------------- PANEL COMANDANTE -----------------
 elif rol == "Comandante":
