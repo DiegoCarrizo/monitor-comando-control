@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import datetime
-import plotly.express as px
+import altair as alt
 
 st.set_page_config(page_title="Monitor C2 - Riesgo Cuantitativo", layout="wide")
 
@@ -242,15 +242,28 @@ elif rol == "Jefe de la Plana Mayor":
     st.session_state.cronograma = df_actualizado
     
     df_valido = df_actualizado[(df_actualizado["Actividad"].str.strip() != "") & (df_actualizado["Inicio"].str.strip() != "") & (df_actualizado["Fin"].str.strip() != "")]
+    
     if not df_valido.empty:
         try:
             df_valido['Inicio'] = pd.to_datetime(df_valido['Inicio'])
             df_valido['Fin'] = pd.to_datetime(df_valido['Fin'])
-            fig = px.timeline(df_valido, x_start="Inicio", x_end="Fin", y="Actividad", color="Responsable", title="Línea de Tiempo del Planeamiento")
-            fig.update_yaxes(autorange="reversed")
-            st.plotly_chart(fig, use_container_width=True)
+            
+            # Gráfico de Gantt nativo con Altair (No requiere requirements.txt)
+            gantt = alt.Chart(df_valido).mark_bar().encode(
+                x=alt.X('Inicio:T', title='Horario de Inicio'),
+                x2='Fin:T',
+                y=alt.Y('Actividad:N', sort='x', title='Actividades del PPC'),
+                color=alt.Color('Responsable:N', legend=alt.Legend(title="Área")),
+                tooltip=['Actividad', 'Responsable', 'Inicio', 'Fin']
+            ).properties(
+                title='Sincronización de la Maniobra',
+                height=350
+            ).interactive()
+            
+            st.altair_chart(gantt, use_container_width=True)
+            
         except Exception as e:
-            st.warning("Formato de fecha inválido. Utilice 'YYYY-MM-DD HH:MM'.")
+            st.warning("Formato de fecha inválido. Utilice el formato 'YYYY-MM-DD HH:MM' (Ej: 2026-10-01 08:00).")
 
 # ----------------- PANEL COMANDANTE -----------------
 elif rol == "Comandante":
