@@ -12,11 +12,12 @@ if 's1' not in st.session_state:
 if 's2' not in st.session_state:
     st.session_state.s2 = {'terreno': 1.0, 'fuerzas_eno': []}
 if 's3' not in st.session_state:
-    st.session_state.s3 = {'fuerzas_propias': [], 'tipo_operacion': 'Ataque', 'pcr_requerido': 3.0, 'vrc_fuegos': 0}
+    st.session_state.s3 = {'fuerzas_propias': [], 'tipo_operacion': 'Ataque', 'pcr_requerido': 3.0, 'vrc_fuegos': 0, 'reserva': []}
 if 's4' not in st.session_state:
     st.session_state.s4 = {
         'stock_combustible': 10000, 'stock_municion': 5000, 'stock_lubricante': 500,
-        'asignaciones': [], 'vehiculos_servicio': 10import streamlit as st
+        'asignaciones': [], 'vehiculos_servicio': 100, 'eficiencia_c2': 1.0
+    }
 import pandas as pd
 import numpy as np
 import datetime
