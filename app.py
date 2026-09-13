@@ -135,8 +135,11 @@ elif rol == "S3 - Operaciones y Fuegos":
             vrc_f = ((efectivos * 0.01) + (alcance * 0.15)) * (1.5 if vn_termo else 1.0) * st.session_state.s1.get('moral', 1.0)
             st.session_state.s3['fuerzas_propias'].append({'Elemento': elemento, 'VRC': round(vrc_f, 2)})
             
-    if st.session_state.s3['fuerzas_propias']:
-        st.dataframe(pd.DataFrame(st.session_state.s3['fuerzas_propias']), use_container_width=True)
+    if 's3' not in st.session_state:
+    st.session_state.s3 = {'fuerzas_propias': [], 'tipo_operacion': 'Ataque', 'pcr_requerido': 3.0, 'vrc_fuegos': 0, 'reserva': []}
+else:
+    if 'reserva' not in st.session_state.s3:
+        st.session_state.s3['reserva'] = []
 
     st.divider()
     st.subheader("Asignación de Elemento en Reserva")
