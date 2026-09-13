@@ -13,6 +13,8 @@ if 's2' not in st.session_state:
     st.session_state.s2 = {'terreno': 1.0, 'fuerzas_eno': []}
 if 's3' not in st.session_state:
     st.session_state.s3 = {'fuerzas_propias': [], 'tipo_operacion': 'Ataque', 'pcr_requerido': 3.0, 'vrc_fuegos': 0, 'reserva': []}
+elif 'reserva' not in st.session_state.s3:
+    st.session_state.s3['reserva'] = []
 if 's4' not in st.session_state:
     st.session_state.s4 = {
         'stock_combustible': 10000, 'stock_municion': 5000, 'stock_lubricante': 500,
