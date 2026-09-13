@@ -6,15 +6,19 @@ import altair as alt
 
 st.set_page_config(page_title="Monitor C2 - Escuadrón", layout="wide")
 
-# Inicialización de bases de datos temporales (Doctrina Unidad/Subunidad)
+# Inicialización segura de variables de sesión
 if 's1' not in st.session_state:
     st.session_state.s1 = {'experiencia': 1.0, 'moral': 1.0, 'bajas_predictivas': 0}
+
 if 's2' not in st.session_state:
     st.session_state.s2 = {'terreno': 1.0, 'fuerzas_eno': []}
+
 if 's3' not in st.session_state:
     st.session_state.s3 = {'fuerzas_propias': [], 'tipo_operacion': 'Ataque', 'pcr_requerido': 3.0, 'vrc_fuegos': 0, 'reserva': []}
-elif 'reserva' not in st.session_state.s3:
+
+if 's3' in st.session_state and 'reserva' not in st.session_state.s3:
     st.session_state.s3['reserva'] = []
+
 if 's4' not in st.session_state:
     st.session_state.s4 = {
         'stock_combustible': 10000, 'stock_municion': 5000, 'stock_lubricante': 500,
