@@ -16,6 +16,24 @@ if 's3' not in st.session_state:
 if 's4' not in st.session_state:
     st.session_state.s4 = {
         'stock_combustible': 10000, 'stock_municion': 5000, 'stock_lubricante': 500,
+        'asignaciones': [], 'vehiculos_servicio': 10import streamlit as st
+import pandas as pd
+import numpy as np
+import datetime
+import altair as alt
+
+st.set_page_config(page_title="Monitor C2 - Escuadrón", layout="wide")
+
+# Inicialización de bases de datos temporales (Doctrina Unidad/Subunidad)
+if 's1' not in st.session_state:
+    st.session_state.s1 = {'experiencia': 1.0, 'moral': 1.0, 'bajas_predictivas': 0}
+if 's2' not in st.session_state:
+    st.session_state.s2 = {'terreno': 1.0, 'fuerzas_eno': []}
+if 's3' not in st.session_state:
+    st.session_state.s3 = {'fuerzas_propias': [], 'tipo_operacion': 'Ataque', 'pcr_requerido': 3.0, 'vrc_fuegos': 0, 'reserva': []}
+if 's4' not in st.session_state:
+    st.session_state.s4 = {
+        'stock_combustible': 10000, 'stock_municion': 5000, 'stock_lubricante': 500,
         'asignaciones': [], 'vehiculos_servicio': 100, 'eficiencia_c2': 1.0
     }
 
@@ -27,7 +45,7 @@ rol = st.sidebar.radio("Seleccione Panel:", [
     "S4 - Logística y Comunicaciones",
     "Confrontación (Monte Carlo)", 
     "Jefe de la Plana Mayor", 
-    "Comandante", 
+    "Comandante (Resolución y Reserva)", 
     "Gestión de Datos"
 ])
 
@@ -67,7 +85,7 @@ if rol == "S1 - Personal y Sanidad":
     st.divider()
     st.subheader("Sanidad y Evacuación Médica")
     ambulancias = st.number_input("Ambulancias Disponibles (M113 / Unimog)", min_value=0, value=2)
-    capacidad_evac = ambulancias * 4 # 4 camillas por vehículo aprox
+    capacidad_evac = ambulancias * 4 
     
     st.metric("Capacidad de Evacuación Simultánea", f"{capacidad_evac} pacientes")
     if bajas_proyectadas > capacidad_evac:
@@ -99,25 +117,37 @@ elif rol == "S2 - Inteligencia":
 
 # ----------------- PANEL S3 -----------------
 elif rol == "S3 - Operaciones y Fuegos":
-    st.header("S3: Maniobra y Apoyo de Fuego")
+    st.header("S3: Maniobra, Reserva y Apoyo de Fuego")
     
     tipo_op = st.selectbox("Clasificación de la Operación", ["Ataque Ruptura (5:1)", "Ataque Frontal (3:1)", "Exploración (1:1)", "Defensa (0.33:1)"])
     st.session_state.s3['tipo_operacion'] = tipo_op.split(" ")[0]
     st.session_state.s3['pcr_requerido'] = float(tipo_op.split("(")[1].split(":")[0])
         
     with st.form("form_op_propia"):
-        elemento = st.text_input("Elemento Propio a Emplear (Ej: 1ra Sección Bl)")
+        elemento = st.text_input("Elemento Principal a Emplear (Ej: 1ra Sección Bl)")
         c1, c2 = st.columns(2)
         with c1: efectivos = st.number_input("Efectivos", min_value=1, value=30)
         with c2: alcance = st.number_input("Alcance (Km)", value=2.5)
         vn_termo = st.checkbox("Visión Termográfica")
         
-        if st.form_submit_button("Asignar Elemento") and elemento:
+        if st.form_submit_button("Asignar Elemento Principal") and elemento:
             vrc_f = ((efectivos * 0.01) + (alcance * 0.15)) * (1.5 if vn_termo else 1.0) * st.session_state.s1.get('moral', 1.0)
             st.session_state.s3['fuerzas_propias'].append({'Elemento': elemento, 'VRC': round(vrc_f, 2)})
             
     if st.session_state.s3['fuerzas_propias']:
         st.dataframe(pd.DataFrame(st.session_state.s3['fuerzas_propias']), use_container_width=True)
+
+    st.divider()
+    st.subheader("Asignación de Elemento en Reserva")
+    with st.form("form_reserva"):
+        elem_res = st.text_input("Fracción en Reserva (Ej: 2da Sección Bl / Exploración)")
+        vrc_res = st.number_input("Valor Relativo de Combate (VRC) de la Reserva", min_value=0.1, value=1.5, step=0.1)
+        
+        if st.form_submit_button("Constituir Reserva") and elem_res:
+            st.session_state.s3['reserva'] = [{'Elemento': elem_res, 'VRC': round(vrc_res, 2), 'Empeñada': False}]
+            
+    if st.session_state.s3['reserva']:
+        st.dataframe(pd.DataFrame(st.session_state.s3['reserva']), use_container_width=True)
 
     st.divider()
     st.subheader("Centro Coordinador de Apoyo de Fuego")
@@ -133,11 +163,14 @@ elif rol == "S3 - Operaciones y Fuegos":
 elif rol == "S4 - Logística y Comunicaciones":
     st.header("S4: Sostenimiento, Abastecimiento y Comunicaciones")
     
+    if 'asignaciones' not in st.session_state.s4:
+        st.session_state.s4['asignaciones'] = []
+    
     st.subheader("1. Stock General del Escuadrón (Tren Logístico)")
     c1, c2, c3 = st.columns(3)
-    st.session_state.s4['stock_combustible'] = c1.number_input("Combustible Existente (Lts)", min_value=0, value=st.session_state.s4['stock_combustible'])
-    st.session_state.s4['stock_municion'] = c2.number_input("Munición Existente (Tiros)", min_value=0, value=st.session_state.s4['stock_municion'])
-    st.session_state.s4['stock_lubricante'] = c3.number_input("Lubricante Existente (Kg/Lts)", min_value=0, value=st.session_state.s4['stock_lubricante'])
+    st.session_state.s4['stock_combustible'] = c1.number_input("Combustible Existente (Lts)", min_value=0, value=st.session_state.s4.get('stock_combustible', 10000))
+    st.session_state.s4['stock_municion'] = c2.number_input("Munición Existente (Tiros)", min_value=0, value=st.session_state.s4.get('stock_municion', 5000))
+    st.session_state.s4['stock_lubricante'] = c3.number_input("Lubricante Existente (Kg/Lts)", min_value=0, value=st.session_state.s4.get('stock_lubricante', 500))
 
     st.divider()
     st.subheader("2. Asignación de Efectos a Subunidades")
@@ -153,7 +186,6 @@ elif rol == "S4 - Logística y Comunicaciones":
                 "Elemento": elem_asig, "Combustible": asig_comb, "Munición": asig_mun, "Lubricante": asig_lub
             })
 
-    # Cálculo dinámico de consumo y saldos
     tot_comb = sum(item["Combustible"] for item in st.session_state.s4['asignaciones'])
     tot_mun = sum(item["Munición"] for item in st.session_state.s4['asignaciones'])
     tot_lub = sum(item["Lubricante"] for item in st.session_state.s4['asignaciones'])
@@ -176,7 +208,6 @@ elif rol == "S4 - Logística y Comunicaciones":
 
     st.divider()
     st.subheader("4. Comunicaciones y Enlace (C2)")
-    st.markdown("Operatividad de los medios técnicos de transmisión del Escuadrón.")
     malla_vhf = st.slider("Operatividad Malla VHF (Corta/Media Distancia) %", 0, 100, 100)
     malla_hf = st.slider("Operatividad Malla HF (Larga Distancia) %", 0, 100, 80)
     
@@ -184,10 +215,9 @@ elif rol == "S4 - Logística y Comunicaciones":
     with c_nodo: retransmision = st.checkbox("Nodos de Retransmisión Desplegados", value=True)
     with c_cripto: cripto = st.checkbox("Claves Criptográficas Sincronizadas", value=True)
     
-    # Cálculo de fricción del C2 integrado en S4
     eficiencia_base = (malla_vhf * 0.7 + malla_hf * 0.3) / 100
     if not retransmision: eficiencia_base *= 0.8
-    if not cripto: eficiencia_base *= 0.6  # Guerra electrónica enemiga
+    if not cripto: eficiencia_base *= 0.6
     
     st.session_state.s4['eficiencia_c2'] = eficiencia_base
     
@@ -278,27 +308,39 @@ elif rol == "Jefe de la Plana Mayor":
             st.warning("Formato de fecha inválido. Utilice 'YYYY-MM-DD HH:MM'.")
 
 # ----------------- PANEL COMANDANTE -----------------
-elif rol == "Comandante":
-    st.header("Tablero de Resolución Táctica (PCR)")
+elif rol == "Comandante (Resolución y Reserva)":
+    st.header("Tablero de Resolución Táctica y Empeñamiento de Reserva")
     
-    # Integración total de la Plana Mayor
     vrc_maniobra = sum(item['VRC'] for item in st.session_state.s3.get('fuerzas_propias', []))
     vrc_fuegos = st.session_state.s3.get('vrc_fuegos', 0)
     vrc_base_eno = sum(item['VRC'] for item in st.session_state.s2.get('fuerzas_eno', []))
     
+    # Gestión de Reserva
+    vrc_reserva_activa = 0
+    if st.session_state.s3.get('reserva'):
+        res = st.session_state.s3['reserva'][0]
+        if res['Empeñada']:
+            vrc_reserva_activa = res['VRC']
+            st.info(f"⚡ RESERVA EMPEÑADA: '{res['Elemento']}' suma +{res['VRC']} VRC al dispositivo principal.")
+        else:
+            st.warning(f"🛡️ Reserva en posición ({res['Elemento']}): {res['VRC']} VRC listos para empeñar.")
+            if st.button(f"⚡ ORDENAR EMPEÑAMIENTO DE RESERVA: {res['Elemento']}"):
+                st.session_state.s3['reserva'][0]['Empeñada'] = True
+                st.rerun()
+
     mod_moral = st.session_state.s1.get('moral', 1.0)
     mod_terreno = st.session_state.s2.get('terreno', 1.0)
     mod_logistico = st.session_state.s4.get('vehiculos_servicio', 100) / 100.0
     mod_c2 = st.session_state.s4.get('eficiencia_c2', 1.0)
     
-    # Cálculo final aplicando fricción de Mando y Control y suma de Apoyo de Fuegos
-    poder_propio = ((vrc_maniobra * mod_moral * mod_logistico) + vrc_fuegos) * mod_terreno * mod_c2
+    # Poder propio incluyendo la reserva si fue empeñada
+    poder_propio = (((vrc_maniobra + vrc_reserva_activa) * mod_moral * mod_logistico) + vrc_fuegos) * mod_terreno * mod_c2
     poder_eno = vrc_base_eno * mod_terreno
     
     pcr_real = poder_propio / poder_eno if poder_eno > 0 else 0
     
     c1, c2, c3 = st.columns(3)
-    c1.metric("Poder de Combate Propio (Con C2 y Fuegos)", f"{poder_propio:.2f}")
+    c1.metric("Poder de Combate Propio", f"{poder_propio:.2f}")
     c2.metric("Poder de Combate Enemigo", f"{poder_eno:.2f}")
     c3.metric("PCR RESULTANTE", f"{pcr_real:.2f} : 1")
     
@@ -308,9 +350,30 @@ elif rol == "Comandante":
         st.success(f"✅ FACTIBLE: El PCR actual ({pcr_real:.2f}) supera la exigencia para la operación (Requiere {exigencia_pcr}).")
     else:
         st.error(f"⚠️ RIESGO INACEPTABLE: El PCR de {pcr_real:.2f} es inferior al umbral de {exigencia_pcr}.")
+
+    st.divider()
+    st.subheader("Matriz de Riesgo Operativo Ponderado")
+    
+    # Cálculo automático de niveles de riesgo
+    riesgo_log = 3 if mod_logistico < 0.6 else (2 if mod_logistico < 0.8 else 1)
+    riesgo_c2 = 3 if mod_c2 < 0.6 else (2 if mod_c2 < 0.8 else 1)
+    riesgo_tactico = 3 if pcr_real < exigencia_pcr else (2 if pcr_real < exigencia_pcr * 1.2 else 1)
+    
+    score_riesgo = riesgo_log + riesgo_c2 + riesgo_tactico
+    
+    rc_col1, rc_col2 = st.columns(2)
+    with rc_col1:
+        st.markdown(f"- **Riesgo Táctico (Brecha PCR):** {'🔴 Alto' if riesgo_tactico==3 else ('🟡 Moderado' if riesgo_tactico==2 else '🟢 Bajo')}")
+        st.markdown(f"- **Riesgo Logístico (Vehículos S4):** {'🔴 Alto' if riesgo_log==3 else ('🟡 Moderado' if riesgo_log==2 else '🟢 Bajo')}")
+        st.markdown(f"- **Riesgo C2 (Comunicaciones):** {'🔴 Alto' if riesgo_c2==3 else ('🟡 Moderado' if riesgo_c2==2 else '🟢 Bajo')}")
         
-    if mod_c2 < 0.8: st.warning("⚠️ ALERTA S4 (Comunicaciones): Fricción de mando por comunicaciones degradadas.")
-    if mod_logistico < 0.6: st.warning("⚠️ ALERTA S4 (Materiales): Colapso de movilidad inminente por vehículos fuera de servicio.")
+    with rc_col2:
+        if score_riesgo >= 7:
+            st.error("🔴 CLASIFICACIÓN GLOBAL: RIESGO INACEPTABLE (Requiere revisión completa del Plan o empeñamiento de Reserva).")
+        elif score_riesgo >= 5:
+            st.warning("🟡 CLASIFICACIÓN GLOBAL: RIESGO MODERADO / ALTO (Autorizado bajo supervisión estricta de la Plana Mayor).")
+        else:
+            st.success("🟢 CLASIFICACIÓN GLOBAL: RIESGO BAJO (Operación óptima y balanceada).")
 
 # ----------------- PANEL GESTIÓN -----------------
 elif rol == "Gestión de Datos":
