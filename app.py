@@ -15,29 +15,10 @@ if 's2' not in st.session_state:
 
 if 's3' not in st.session_state:
     st.session_state.s3 = {'fuerzas_propias': [], 'tipo_operacion': 'Ataque', 'pcr_requerido': 3.0, 'vrc_fuegos': 0, 'reserva': []}
+else:
+    if 'reserva' not in st.session_state.s3:
+        st.session_state.s3['reserva'] = []
 
-if 's3' in st.session_state and 'reserva' not in st.session_state.s3:
-    st.session_state.s3['reserva'] = []
-
-if 's4' not in st.session_state:
-    st.session_state.s4 = {
-        'stock_combustible': 10000, 'stock_municion': 5000, 'stock_lubricante': 500,
-        'asignaciones': [], 'vehiculos_servicio': 100, 'eficiencia_c2': 1.0
-    }
-import pandas as pd
-import numpy as np
-import datetime
-import altair as alt
-
-st.set_page_config(page_title="Monitor C2 - Escuadrón", layout="wide")
-
-# Inicialización de bases de datos temporales (Doctrina Unidad/Subunidad)
-if 's1' not in st.session_state:
-    st.session_state.s1 = {'experiencia': 1.0, 'moral': 1.0, 'bajas_predictivas': 0}
-if 's2' not in st.session_state:
-    st.session_state.s2 = {'terreno': 1.0, 'fuerzas_eno': []}
-if 's3' not in st.session_state:
-    st.session_state.s3 = {'fuerzas_propias': [], 'tipo_operacion': 'Ataque', 'pcr_requerido': 3.0, 'vrc_fuegos': 0, 'reserva': []}
 if 's4' not in st.session_state:
     st.session_state.s4 = {
         'stock_combustible': 10000, 'stock_municion': 5000, 'stock_lubricante': 500,
@@ -141,11 +122,8 @@ elif rol == "S3 - Operaciones y Fuegos":
             vrc_f = ((efectivos * 0.01) + (alcance * 0.15)) * (1.5 if vn_termo else 1.0) * st.session_state.s1.get('moral', 1.0)
             st.session_state.s3['fuerzas_propias'].append({'Elemento': elemento, 'VRC': round(vrc_f, 2)})
             
-    if 's3' not in st.session_state:
-    st.session_state.s3 = {'fuerzas_propias': [], 'tipo_operacion': 'Ataque', 'pcr_requerido': 3.0, 'vrc_fuegos': 0, 'reserva': []}
-else:
-    if 'reserva' not in st.session_state.s3:
-        st.session_state.s3['reserva'] = []
+    if st.session_state.s3['fuerzas_propias']:
+        st.dataframe(pd.DataFrame(st.session_state.s3['fuerzas_propias']), use_container_width=True)
 
     st.divider()
     st.subheader("Asignación de Elemento en Reserva")
@@ -364,7 +342,6 @@ elif rol == "Comandante (Resolución y Reserva)":
     st.divider()
     st.subheader("Matriz de Riesgo Operativo Ponderado")
     
-    # Cálculo automático de niveles de riesgo
     riesgo_log = 3 if mod_logistico < 0.6 else (2 if mod_logistico < 0.8 else 1)
     riesgo_c2 = 3 if mod_c2 < 0.6 else (2 if mod_c2 < 0.8 else 1)
     riesgo_tactico = 3 if pcr_real < exigencia_pcr else (2 if pcr_real < exigencia_pcr * 1.2 else 1)
